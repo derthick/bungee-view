@@ -1,38 +1,39 @@
 package edu.cmu.cs.bungee.javaExtensions.threads;
 
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
+
 /**
  * A QueueThread where only the most recently added queue entry is relevant. The
  * queue is cleared each time that entry is processed.
- * 
+ *
  * @author mad
- * 
+ *
  */
-public class UpdateThread extends QueueThread {
+public abstract class UpdateThread<T> extends QueueThread<T> {
 
 	/**
-	 * @param name useful for debugging
-	 * @param deltaPriority this thread's priority relative to the caller's priority
+	 * @param name
+	 *            useful for debugging
+	 * @param deltaPriority
+	 *            this thread's priority relative to the caller's priority
 	 */
-	public UpdateThread(String name, int deltaPriority) {
-		super(name, null, true, deltaPriority);
+	public UpdateThread(final @NonNull String name, final int deltaPriority) {
+		super(name, deltaPriority);
 	}
 
 	@Override
-	protected synchronized Object get() {
-		Object result = null;
-		while (isUpToDate()) {
+	protected T get() {
+		@Nullable
+		T result = null;
+		if (!exited) {
 			try {
-				wait();
-			} catch (InterruptedException e) {
-				// Our wait is over
+				result = queue.takeLast();
+				queue.clear();
+			} catch (final InterruptedException e) {
+				// e.printStackTrace();
 			}
 		}
-		if (queue != null) {
-			result = queue.get(queue.size() - 1);
-			assert result != null;
-			queue.clear();
-		}
-		return result;
+		return exited ? null : result;
 	}
-
 }
