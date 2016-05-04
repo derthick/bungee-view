@@ -23,12 +23,12 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * Java, the Duke mascot, and all variants of Sun's Java "steaming coffee
  * cup" logo are trademarks of Sun Microsystems. Sun's, and James Gosling's,
- * pioneering role in inventing and promulgating (and standardizing) the Java 
+ * pioneering role in inventing and promulgating (and standardizing) the Java
  * language and environment is gratefully acknowledged.
- * 
+ *
  * The pioneering role of Dennis Ritchie and Bjarne Stroustrup, of AT&T, for
  * inventing predecessor languages C and C++ is also gratefully acknowledged.
  */
@@ -38,6 +38,10 @@ import java.text.FieldPosition;
 import java.text.Format;
 import java.text.NumberFormat;
 import java.text.ParsePosition;
+
+import org.eclipse.jdt.annotation.NonNull;
+
+import edu.cmu.cs.bungee.javaExtensions.UtilString.Justification;
 
 // public class StringAlignDemo {
 //
@@ -75,73 +79,78 @@ import java.text.ParsePosition;
  * change from ints to enum for alignment.
  */
 public class StringAlign extends Format {
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
-	/* Constant for left justification. */
-	public static final int JUST_LEFT = 'l';
-	/* Constant for centering. */
-	public static final int JUST_CENTRE = 'c';
-	/* Centering Constant, for those who spell "centre" the American way. */
-	public static final int JUST_CENTER = JUST_CENTRE;
-	/** Constant for right-justified Strings. */
-	public static final int JUST_RIGHT = 'r';
+	protected static final long serialVersionUID = 1L;
+
+	// public enum Justification {
+	// JUST_LEFT, JUST_CENTRE, JUST_RIGHT
+	// }
+
+	// /* Constant for left justification. */
+	// public static final int JUST_LEFT = 'l';
+	// /* Constant for centering. */
+	// private static final int JUST_CENTRE = 'c';
+	// /* Centering Constant, for those who spell "centre" the American way. */
+	// // TODO Remove unused code found by UCDetector
+	// // public static final int JUST_CENTER = JUST_CENTRE;
+	// /** Constant for right-justified Strings. */
+	// public static final int JUST_RIGHT = 'r';
 
 	/** Current justification */
-	private int just;
+	private final Justification just;
 	/** Current max length */
-	private int maxChars;
+	private final int maxChars;
 
 	/**
 	 * Construct a StringAlign formatter; length and alignment are passed to the
 	 * Constructor instead of each format() call as the expected common use is
 	 * in repetitive formatting e.g., page numbers.
-	 * 
-	 * @param maxChars
+	 *
+	 * @param _maxChars
 	 *            - the length of the output
-	 * @param just
+	 * @param _just
 	 *            - one of JUST_LEFT, JUST_CENTRE or JUST_RIGHT
 	 */
-	public StringAlign(int maxChars, int just) {
-		switch (just) {
-		case JUST_LEFT:
-		case JUST_CENTRE:
-		case JUST_RIGHT:
-			this.just = just;
+	public StringAlign(final int _maxChars, final Justification _just) {
+		switch (_just) {
+		case LEFT:
+		case CENTER:
+		case RIGHT:
+			just = _just;
 			break;
 		default:
 			throw new IllegalArgumentException("invalid justification arg.");
 		}
-		if (maxChars < 0) {
+		if (_maxChars < 0) {
 			throw new IllegalArgumentException("maxChars must be positive.");
 		}
-		this.maxChars = maxChars;
+		maxChars = _maxChars;
 	}
 
 	/**
 	 * Format a String.
-	 * 
+	 *
 	 * @param obj
 	 *            _ the string to be aligned.
-	 * @parm where - the StringBuffer to append it to.
+	 * @parm where - the StringBuilder to append it to.
 	 * @param ignore
 	 *            - a FieldPosition (may be null, not used but specified by the
 	 *            general contract of Format).
 	 */
 	@Override
-	public StringBuffer format(Object obj, StringBuffer where,
-			FieldPosition ignore) {
+	public @NonNull StringBuffer format(final Object obj, final StringBuffer where, final FieldPosition ignore) {
 		return format(obj, where, maxChars, just);
 	}
 
-	public StringBuffer format(Object obj, StringBuffer where) {
-		return format(obj, where, null);
-	}
+	// TODO Remove unused code found by UCDetector
+	// public StringBuilder format(final Object obj, final StringBuilder where)
+	// {
+	// return format(obj, where, null);
+	// }
 
-	public String format(Object obj, Format format) {
-		return format(format.format(obj));
-	}
+	// TODO Remove unused code found by UCDetector
+	// public String format(final Object obj, final Format format) {
+	// return format(format.format(obj));
+	// }
 
 	/**
 	 * @param n
@@ -149,60 +158,67 @@ public class StringAlign extends Format {
 	 *            Use this format to get a string, and then pad according to
 	 *            this StringFormat.
 	 */
-	public String format(int n, NumberFormat format) {
-		return format(format.format(n));
+	public @NonNull String format(final int n, final @NonNull NumberFormat format) {
+		return format(Util.nonNull(format.format(n)));
 	}
 
-	public String format(double obj, NumberFormat format) {
-		return format(format.format(obj));
+	public @NonNull String format(final double obj, final @NonNull NumberFormat format) {
+		return format(Util.nonNull(format.format(obj)));
 	}
 
-	protected static final void pad(StringBuffer to, int howMany) {
-		for (int i = 0; i < howMany; i++)
-			to.append(' ');
+	private static final void pad(final @NonNull StringBuffer where, final int howMany) {
+		for (int i = 0; i < howMany; i++) {
+			where.append(' ');
+		}
 	}
 
 	/** Convenience Routine */
-	String format(String s) {
-		return format(s, new StringBuffer(), null).toString();
+	private @NonNull String format(final @NonNull String s) {
+		return Util.nonNull(format(s, null, null).toString());
 	}
 
 	/** ParseObject is required, but not useful here. */
 	@Override
-	public Object parseObject(String source, ParsePosition pos) {
+	public Object parseObject(final String source, @SuppressWarnings("unused") final ParsePosition pos) {
 		return source;
 	}
 
-	public static StringBuffer format(Object obj, StringBuffer where,
-			int maxChars, int just) {
-		if (where == null)
+	private static @NonNull StringBuffer format(final Object obj, StringBuffer where, final int maxChars,
+			final Justification just2) {
+		if (where == null) {
 			where = new StringBuffer();
+		}
 
-		String s = obj == null ? "<null>" : obj.toString();
-		String wanted = s.substring(0, Math.min(s.length(), maxChars));
+		final String s = obj == null ? "<null>" : obj.toString();
+		final String wanted = s.substring(0, Math.min(s.length(), maxChars));
 
 		// Get the spaces in the right place.
-		switch (just) {
-		case JUST_RIGHT:
+		switch (just2) {
+		case RIGHT:
 			pad(where, maxChars - wanted.length());
 			where.append(wanted);
 			break;
-		case JUST_CENTRE:
-			int toAdd = maxChars - wanted.length();
+		case CENTER:
+			final int toAdd = maxChars - wanted.length();
 			pad(where, toAdd / 2);
 			where.append(wanted);
 			pad(where, toAdd - toAdd / 2);
 			break;
-		case JUST_LEFT:
+		case LEFT:
 			where.append(wanted);
 			pad(where, maxChars - wanted.length());
+			break;
+		default:
+			assert false : just2;
 			break;
 		}
 		return where;
 	}
 
-	public static String format(Object obj, int maxChars, int just) {
-		return format(obj, null, maxChars, just).toString();
-	}
+	// TODO Remove unused code found by UCDetector
+	// public static String format(final Object obj, final int maxChars,
+	// final int just) {
+	// return format(obj, null, maxChars, just).toString();
+	// }
 
 }

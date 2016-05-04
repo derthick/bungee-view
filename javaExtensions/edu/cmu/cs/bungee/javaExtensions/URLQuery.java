@@ -16,24 +16,30 @@ package edu.cmu.cs.bungee.javaExtensions;
  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.util.Hashtable;
 import java.util.StringTokenizer;
 import java.util.Vector;
 
+import org.eclipse.jdt.annotation.NonNull;
+
+import jdk.nashorn.internal.ir.annotations.Immutable;
+
 /**
  * Class that handles the URL query with arguments.
- * 
+ *
  * @author Johan Känngård, http://dev.kanngard.net
  */
-public class URLQuery {
+@Immutable
+public class URLQuery implements Serializable {
+	protected static final long serialVersionUID = -959016825795947094L;
 
 	/**
 	 * The actual query part of the URL, after the ? character.
 	 */
-	private String query = null;
+	private final String query;
 
 	/**
 	 * The query arguments.
@@ -41,48 +47,66 @@ public class URLQuery {
 	private Hashtable<String, Vector<String>> arguments = null;
 
 	/**
-	 * Creates a new URLQuery object from the specified URL.
-	 * 
-	 * @param url
-	 *            the URL to extract the query part from.
-	 */
-	public URLQuery(URL url) {
-		query = url.getQuery();
-	}
-
-	/**
 	 * Creates a new URLQuery object with the specified query String.
-	 * 
+	 *
 	 * @param query1
 	 *            the URL query part (after the ? character).
 	 */
-	public URLQuery(String query1) {
-		this.query = query1;
+	public @Immutable URLQuery(final @NonNull String query1) {
+		assert!query1.contains("?") : "Argument should be the part of the URL after the '?': " + query1;
+		query = query1;
+	}
+
+	/**
+	 * @return true iff key.equalsIgnoreCase("true").
+	 */
+	public boolean getBooleanArgument(final String key) {
+		return Boolean.valueOf(getArgument(key, "false"));
+	}
+
+	/**
+	 * @return value of key, or Integer.MIN_VALUE if not present.
+	 */
+	public int getIntArgument(final String key) {
+		final String arg = getArgument(key).trim();
+		return arg.length() == 0 ? Integer.MIN_VALUE : Integer.parseInt(arg);
 	}
 
 	/**
 	 * Returns the first specified URL argument as a String.
-	 * 
+	 *
 	 * @param key
 	 *            the argument key to get the value of.
 	 * @return the value of the specified URL query key argument value, or "" if
 	 *         the key is not present.
 	 */
-	public String getArgument(String key) {
+	public @NonNull String getArgument(final String key) {
+		return Util.nonNull(getArgument(key, ""));
+	}
+
+	/**
+	 * Returns the first specified URL argument as a String.
+	 *
+	 * @param key
+	 *            the argument key to get the value of.
+	 * @return the value of the specified URL query key argument value, or "" if
+	 *         the key is not present.
+	 */
+	public String getArgument(final String key, final String defaultValue) {
 		if (getArguments() == null) {
-			return "";
+			return defaultValue;
 		}
-		Vector<String> v = arguments.get(key);
+		final Vector<String> v = arguments.get(key);
 
 		if (v == null || v.size() < 1) {
-			return "";
+			return defaultValue;
 		}
 		return v.elementAt(0);
 	}
 
 	/**
 	 * Parses the specified URL and extracts the arguments from the query part.
-	 * 
+	 *
 	 * @return a Hashtable containing the argument keys as keys and Vectors with
 	 *         the argument values as values.
 	 */
@@ -90,18 +114,21 @@ public class URLQuery {
 		if (arguments != null) {
 			return arguments;
 		}
-		Hashtable<String, Vector<String>> table = new Hashtable<String, Vector<String>>();
+		if (query == null) {
+			return null;
+		}
+		final Hashtable<String, Vector<String>> table = new Hashtable<>();
 
 		String pair = null;
 		String key = null;
 		String value = null;
 		int index = 0;
 		Vector<String> v = null;
-		StringTokenizer tok = new StringTokenizer(query, "&");
+		final StringTokenizer tok = new StringTokenizer(query, "&");
 
 		while (tok.hasMoreElements()) {
 			pair = (String) tok.nextElement();
-			index = pair.indexOf("=");
+			index = pair.indexOf('=');
 
 			if (index == -1) {
 				key = pair;
@@ -109,9 +136,8 @@ public class URLQuery {
 			} else {
 				key = pair.substring(0, index);
 				try {
-					value = URLDecoder.decode(pair.substring(index + 1),
-							"UTF-8");
-				} catch (UnsupportedEncodingException e) {
+					value = URLDecoder.decode(pair.substring(index + 1), "UTF-8");
+				} catch (final UnsupportedEncodingException e) {
 					value = pair.substring(index + 1);
 				}
 			}
@@ -120,7 +146,7 @@ public class URLQuery {
 				v = table.get(key);
 				v.addElement(value);
 			} else {
-				v = new Vector<String>();
+				v = new Vector<>();
 				v.addElement(value);
 				table.put(key, v);
 			}
@@ -131,11 +157,20 @@ public class URLQuery {
 
 	/**
 	 * Returns a String representation of this URLQuery.
-	 * 
+	 *
 	 * @return the original query that was used when created this URLQuery.
 	 */
 	@Override
 	public String toString() {
-		return query;
+		return UtilString.toString(this, query);
+	}
+
+	/**
+	 * Returns a String representation of this URLQuery.
+	 *
+	 * @return the original query that was used when created this URLQuery.
+	 */
+	public String format() {
+		return query.replace('&', '\n');
 	}
 }

@@ -1,23 +1,33 @@
 package edu.cmu.cs.bungee.javaExtensions;
 
-import java.util.Iterator;
+import java.io.Serializable;
+import java.util.List;
 
-public interface Labeled<V> {
+import org.eclipse.jdt.annotation.NonNull;
 
-	Iterator<V> getChildIterator(V from, V to);
+/**
+ * Keeps track of an ordered set of Vs, each associated with a count. Supports
+ * cumCountRangeChildren(int minCount, int maxCount);
+ */
+interface Labeled<V> extends Serializable {
 
-	Iterator<V> getChildIterator();
+	static final long serialVersionUID = 1L;
 
-	Iterator<V> cumCountChildIterator(int minCount, int maxCount);
+	/**
+	 * @return must not be empty, and must not contain nulls.
+	 */
+	@NonNull
+	List<V> getChildren();
 
-	int count(V o);
+	/**
+	 * @return must be >= 0.
+	 *
+	 *         Allow zero so DefaultLabeledForPerspective &
+	 *         PerspectiveVScrollLabeled can use getChildrenRaw() for
+	 *         getChildren() and whichChildRaw() for childIndex().
+	 */
+	int count(@NonNull V o);
 
-	int cumCountInclusive(V o);
-
-	void updateCounts();
-
-	int priority(V o);
-
-	void drawLabel(V o, int from, int to);
+	void drawLabel(@NonNull V o, int[] pixelRange);
 
 }

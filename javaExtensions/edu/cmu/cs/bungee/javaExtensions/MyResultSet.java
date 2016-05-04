@@ -1,321 +1,317 @@
 package edu.cmu.cs.bungee.javaExtensions;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
-//import java.sql.NClob;
+import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
-//import java.sql.RowId;
+import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
-//import java.sql.SQLXML;
+import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 
-public class MyResultSet implements ResultSet {
-	private static final long serialVersionUID = -959016825795947094L;
+import javax.imageio.ImageIO;
+
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
+
+/**
+ * Only used by ServletInterface (so don't use MyLogger)
+ */
+public class MyResultSet implements ResultSet, Serializable {
+
+	protected static final long serialVersionUID = -959016825795947094L;
+
+	public enum ColumnType {
+		INTEGER, POSITIVE_INTEGER, SORTED_MONOTONIC_INTEGER, STRING, IMAGE, SORTED_NM_INTEGER, DOUBLE
+	}
+
+	// private static final MyLogger myLogger =
+	// MyLogger.getMyLogger(MyResultSet.class);
+	//
+	// private static void logp(final String msg, final Level level, final
+	// String sourceMethod) {
+	// MyLogger.logp(myLogger, msg, level, "DatabaseEditing", sourceMethod);
+	// }
+
+	public static final @NonNull MyResultSet DUMMY_RS = new MyResultSet();
+
+	private static void logp(final String msg, final Level level, final String sourceMethod) {
+		System.err.println("MyResultSet." + sourceMethod + " " + level + ": " + msg);
+	}
 
 	private int currentRow;
+	private final int nRows;
+	final Column[] columns;
+	final List<ColumnType> columnTypes;
 
-	int nRows;
-
-	private Column[] columns;
-
-	int getColumnCount() {
-		return columns.length;
+	private MyResultSet() {
+		nRows = 0;
+		columns = null;
+		columnTypes = null;
 	}
 
-	static List<Object> makeColumnTypeList(Object col1, Object col2, Object col3,
-			Object col4, Object col5, Object col6, Object col7, Object col8,
-			Object col9, Object col10) {
-		List<Object> temp = new ArrayList<Object>();
-		addCol(col1, temp);
-		addCol(col2, temp);
-		addCol(col3, temp);
-		addCol(col4, temp);
-		addCol(col5, temp);
-		addCol(col6, temp);
-		addCol(col7, temp);
-		addCol(col8, temp);
-		addCol(col9, temp);
-		addCol(col10, temp);
-		return Collections.unmodifiableList(temp);
-	}
-
-	static void addCol(Object type, List<Object> temp) {
-		if (type != null)
-			temp.add(type);
-	}
-
-	public static final List<Object> INT = makeColumnTypeList(Column.IntegerType, null,
-			null, null, null, null, null, null, null, null);
-
-	public static final List<Object> INT_DOUBLE = makeColumnTypeList(Column.IntegerType, Column.DoubleType,
-			null, null, null, null, null, null, null, null);
-
-	public static final List<Object> INT_DOUBLE_DOUBLE = makeColumnTypeList(Column.IntegerType, Column.DoubleType,
-			Column.DoubleType, null, null, null, null, null, null, null);
-
-	public static final List<Object> INT_INT = makeColumnTypeList(Column.IntegerType,
-			Column.IntegerType, null, null, null, null, null, null, null, null);
-
-	public static final List<Object> INT_INT_INT = makeColumnTypeList(
-			Column.IntegerType, Column.IntegerType, Column.IntegerType, null,
-			null, null, null, null, null, null);
-
-	public static final List<Object> INT_INT_INT_INT = makeColumnTypeList(
-			Column.IntegerType, Column.IntegerType, Column.IntegerType,
-			Column.IntegerType, null, null, null, null, null, null);
-
-	public static final List<Object> INT_INT_INT_INT_INT_DOUBLE_DOUBLE = makeColumnTypeList(
-			Column.IntegerType, Column.IntegerType, Column.IntegerType,
-			Column.IntegerType, Column.IntegerType, Column.DoubleType, Column.DoubleType, null, null, null);
-
-	public static final List<Object> INT_INT_STRING = makeColumnTypeList(
-			Column.IntegerType, Column.IntegerType, Column.StringType, null,
-			null, null, null, null, null, null);
-
-	public static final List<Object> INT_INT_INT_STRING = makeColumnTypeList(
-			Column.IntegerType, Column.IntegerType, Column.IntegerType,
-			Column.StringType, null, null, null, null, null, null);
-
-	public static final List<Object> INT_PINT_STRING_INT_INT_INT_INT_DOUBLE_PINT_PINT = makeColumnTypeList(
-			Column.IntegerType, Column.PositiveIntegerType, Column.StringType,
-			Column.IntegerType, Column.IntegerType, Column.IntegerType,
-			Column.IntegerType, Column.DoubleType, Column.PositiveIntegerType,
-			Column.PositiveIntegerType);
-
-	public static final List<Object> INT_SINT = makeColumnTypeList(Column.IntegerType,
-			Column.SortedIntegerType, null, null, null, null, null, null, null,
-			null);
-
-	public static final List<Object> INT_STRING = makeColumnTypeList(
-			Column.IntegerType, Column.StringType, null, null, null, null,
-			null, null, null, null);
-
-	public static final List<Object> PINT_SINT_STRING_INT_INT_INT = makeColumnTypeList(
-			Column.PositiveIntegerType, Column.SortedIntegerType,
-			Column.StringType, Column.IntegerType, Column.IntegerType,
-			Column.IntegerType, null, null, null, null);
-
-	public static final List<Object> PINT_SINT_STRING_INT_INT_INT_INT = makeColumnTypeList(
-			Column.PositiveIntegerType, Column.SortedIntegerType,
-			Column.StringType, Column.IntegerType, Column.IntegerType,
-			Column.IntegerType, Column.IntegerType, null, null, null);
-
-	public static final List<Object> SINT = makeColumnTypeList(
-			Column.SortedIntegerType, null, null, null, null, null, null, null,
-			null, null);
-
-	public static final List<Object> SINT_STRING_IMAGE_INT_INT = makeColumnTypeList(
-			Column.SortedIntegerType, Column.StringType, Column.ImageType,
-			Column.IntegerType, Column.IntegerType, null, null, null, null,
-			null);
-
-	public static final List<Object> SINT_PINT = makeColumnTypeList(
-			Column.SortedIntegerType, Column.PositiveIntegerType, null, null,
-			null, null, null, null, null, null);
-
-	public static final List<Object> SINT_INT = makeColumnTypeList(
-			Column.SortedIntegerType, Column.IntegerType, null, null, null,
-			null, null, null, null, null);
-
-	public static final List<Object> SINT_INT_INT_INT_INT = makeColumnTypeList(
-			Column.PositiveIntegerType, Column.IntegerType, Column.IntegerType,
-			Column.IntegerType, Column.IntegerType, null, null, null, null,
-			null);
-
-	public static final List<Object> SNMINT_INT_INT = makeColumnTypeList(
-			Column.SortedNMIntegerType, Column.IntegerType, Column.IntegerType,
-			null, null, null, null, null, null, null);
-
-	public static final List<Object> SNMINT_PINT = makeColumnTypeList(
-			Column.SortedNMIntegerType, Column.PositiveIntegerType, null, null,
-			null, null, null, null, null, null);
-
-	public static final List<Object> STRING = makeColumnTypeList(Column.StringType,
-			null, null, null, null, null, null, null, null, null);
-
-	public static final List<Object> STRING_IMAGE_INT_INT = makeColumnTypeList(
-			Column.StringType, Column.ImageType, Column.IntegerType,
-			Column.IntegerType, null, null, null, null, null, null);
-
-	public static final List<Object> STRING_INT = makeColumnTypeList(Column.StringType,
-			Column.IntegerType, null, null, null, null, null, null, null, null);
-
-	public static final List<Object> STRING_INT_INT = makeColumnTypeList(
-			Column.StringType, Column.IntegerType, Column.IntegerType, null,
-			null, null, null, null, null, null);
-
-	public static final List<Object> STRING_INT_INT_INT = makeColumnTypeList(
-			Column.StringType, Column.IntegerType, Column.IntegerType,
-			Column.IntegerType, null, null, null, null, null, null);
-
-	public static final List<Object> STRING_SINT = makeColumnTypeList(
-			Column.StringType, Column.SortedIntegerType, null, null, null,
-			null, null, null, null, null);
-
-	public static final List<Object> STRING_STRING_STRING_INT_INT_INT_INT = makeColumnTypeList(
-			Column.StringType, Column.StringType, Column.StringType,
-			Column.IntegerType, Column.IntegerType, Column.IntegerType,
-			Column.IntegerType, null, null, null);
-
-	public static final List<Object> STRING_STRING_STRING_STRING = makeColumnTypeList(
-			Column.StringType, Column.StringType, Column.StringType,
-			Column.StringType, null, null, null, null, null, null);
-
-	public MyResultSet(DataInputStream s, List<Object> types)  {
-		nRows = readInt(s) - 1;
+	public MyResultSet(final @NonNull DataInputStream dataInputStream) {
+		// assert dataInputStream != null : "InputStream is NULL!";
+		final ReadCompressedIntsIterator readCompressedIntsIterator = new ReadCompressedIntsIterator(dataInputStream,
+				3);
+		nRows = readCompressedIntsIterator.next();
 		// System.out.println(nRows + " rows");
-		if (nRows >= 0) {
-			int nCols = readInt(s);
-			assert nCols == types.size() : nCols + " " + types.size() + " "
-					+ nRows;
-			columns = new Column[nCols];
-			for (int i = 0; i < nCols; i++) {
-				boolean sorted = false;
-				boolean positive = false;
-				Object type = types.get(i);
-				try {
-					if (type == Column.SortedIntegerType) {
-						sorted = true;
-						positive = true;
-						columns[i] = new IntColumn(s, nRows, sorted, positive);
-					} else if (type == Column.PositiveIntegerType) {
-						positive = true;
-						columns[i] = new IntColumn(s, nRows, sorted, positive);
-					} else if (type == Column.IntegerType) {
-						columns[i] = new IntColumn(s, nRows, sorted, positive);
-					} else if (type == Column.SortedNMIntegerType) {
-						sorted = true;
-						columns[i] = new IntColumn(s, nRows, sorted, positive);
-					} else if (type == Column.StringType) {
-						columns[i] = new StringColumn(s, nRows);
-					} else if (type == Column.DoubleType) {
-						columns[i] = new DoubleColumn(s, nRows);
-					} else if (type == Column.ImageType) {
-						columns[i] = new BlobColumn(s, nRows);
-					} else {
-						assert false : "Unknown column type: " + type;
-					}
-				} catch (Exception e) {
-					Util.err("While reading " + type + " column " + i + " of "
-							+ types);
-					for (int j = 0; j < i; j++) {
-						Util.err(Util.valueOfDeep(columns[j].getValues()));
-					}
-					e.printStackTrace();
+		assert nRows >= 0 : "nRows=" + nRows;
+		final int nCols = readCompressedIntsIterator.next() + 1;
+		readCompressedIntsIterator.incfNints(nCols - 1);
+		columns = new Column[nCols];
+		columnTypes = new ArrayList<>(nCols);
+		final ColumnType[] colTypeValues = ColumnType.values();
+		for (final ReadCompressedIntsIterator it = readCompressedIntsIterator; it.hasNext();) {
+			columnTypes.add(colTypeValues[it.next()]);
+		}
+		assert columnTypes.size() == nCols && readCompressedIntsIterator.finished();
+		for (int i = 0; i < nCols; i++) {
+			final ColumnType type = columnTypes.get(i);
+			try {
+				switch (type) {
+				case SORTED_MONOTONIC_INTEGER:
+				case POSITIVE_INTEGER:
+				case INTEGER:
+				case SORTED_NM_INTEGER:
+					columns[i] = new IntColumn(dataInputStream, nRows, intColumnProperties(type));
+					break;
+				case STRING:
+					columns[i] = new StringColumn(dataInputStream, nRows);
+					break;
+				case DOUBLE:
+					columns[i] = new DoubleColumn(dataInputStream, nRows);
+					break;
+				case IMAGE:
+					columns[i] = new BlobColumn(dataInputStream, nRows);
+					break;
+				default:
+					assert false : "Unknown ColumnType: " + type;
 				}
+			} catch (final Exception e) {
+				System.err.println("While reading " + type + " column " + (i + 1) + " of " + columnTypes + ":\n");
+				for (int j = 0; j < i; j++) {
+					System.err.println("Column " + (j + 1) + " (" + columns[j].getLabel() + "): "
+							+ UtilString.valueOfDeep(columns[j].getValues()));
+				}
+				e.printStackTrace();
 			}
 		}
 	}
 
-	public boolean absolute(int row) {
+	// private static MyLogger getMyLogger() {
+	// if (myLogger == null) {
+	// synchronized (myLoggerLock) {
+	// myLogger = new MyLogger(
+	// UtilString
+	// .classForName("edu.cmu.cs.bungee.javaExtensions.MyResultSet"));
+	// }
+	// }
+	// return myLogger;
+	// }
+
+	@Override
+	public boolean absolute(final int row) {
 		// System.out.println("absolute " + row);
-		if (row >= 0)
+		if (row >= 0) {
 			currentRow = row;
-		else
+		} else {
 			currentRow = nRows + row + 1;
+		}
 		return currentRow >= 1 && currentRow <= nRows;
 	}
 
+	@Override
 	public int getRow() {
 		return currentRow;
 	}
 
+	@Override
 	public void afterLast() {
 		currentRow = nRows + 1;
 	}
 
+	@Override
 	public void beforeFirst() {
 		currentRow = 0;
 	}
 
+	@Override
 	public boolean next() {
 		return ++currentRow <= nRows;
 	}
 
+	@Override
 	public void close() {
 		// Only the garbage collector needs to know
 	}
 
-	public Object[] getValues(int columnIndex) {
+	// with this, you don't need to bother with a try/catch
+	public static void close(final ResultSet rs) { // NO_UCD (unused code)
+		try {
+			rs.close();
+		} catch (final SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public @NonNull Object[] getValues(final int columnIndex) {
 		return columns[columnIndex - 1].getValues();
 	}
 
-	private void checkCurrentRowCol(int columnIndex) throws SQLException {
-		if (currentRow < 1 || currentRow > nRows)
-			throw new SQLException("Not on valid [1, " + nRows + "] row: "
-					+ currentRow);
-		if (columnIndex < 1 || columnIndex > columns.length)
-			throw new SQLException("Invalid [1, " + columns.length
-					+ "] column: " + columnIndex);
+	private boolean checkCurrentRowCol(final int columnIndex) throws SQLException {
+		if (currentRow < 1 || currentRow > nRows) {
+			throw new SQLException("Not on valid [1, " + nRows + "] row: " + currentRow + "\n" + valueOfDeep(10));
+		}
+		if (columnIndex < 1 || columnIndex > columns.length) {
+			throw new SQLException("Invalid column index: " + columnIndex + ". The valid column index range is [1, "
+					+ columns.length + "]");
+		}
+		return true;
 	}
 
-	public String getString(int columnIndex) throws SQLException {
-		checkCurrentRowCol(columnIndex);
+	@Override
+	public String getString(final int columnIndex) throws SQLException {
+		assert checkCurrentRowCol(columnIndex);
 		return columns[columnIndex - 1].getString(currentRow);
 	}
 
-	public int getInt(int columnIndex) throws SQLException {
-		checkCurrentRowCol(columnIndex);
+	@Override
+	public int getInt(final int columnIndex) throws SQLException {
+		assert checkCurrentRowCol(columnIndex);
 		return columns[columnIndex - 1].getInt(currentRow);
 	}
 
-	public double getDouble(int columnIndex) throws SQLException {
-		checkCurrentRowCol(columnIndex);
+	@Override
+	public double getDouble(final int columnIndex) throws SQLException {
+		assert checkCurrentRowCol(columnIndex);
 		return columns[columnIndex - 1].getDouble(currentRow);
 	}
 
-	public InputStream getInputStream(int columnIndex) throws SQLException {
-		checkCurrentRowCol(columnIndex);
+	public BufferedImage getBufferedImage(final int columnIndex) throws SQLException {
+		assert checkCurrentRowCol(columnIndex);
 		return columns[columnIndex - 1].getBlob(currentRow);
 	}
 
-	public String getString(String columnName) {
+	@Override
+	public String getString(final String columnName) {
 		return columns[findColumn(columnName) - 1].getString(currentRow);
 	}
 
-	public int getInt(String columnName) {
-		return columns[findColumn(columnName) - 1].getInt(currentRow);
+	@Override
+	public int getInt(final String columnName) {
+		final Column column = columns[findColumn(columnName) - 1];
+		int result = -1;
+		try {
+			result = column.getInt(currentRow);
+		} catch (final AssertionError e) {
+			System.err.println(
+					"While MyResultSet.getInt columnName=" + columnName + " column=" + column + " " + getMetaData());
+			e.printStackTrace();
+		}
+		return result;
 	}
 
-	public int findColumn(String columnName) {
-		// Util.print("findColumn " + columnName);
-		// for (int i = 0; i < columns.length; i++) {
-		// Util.print(i + " " + columns[i].name);
-		// if (columns[i].name.equals(columnName))
-		// assert false; return i;
-		// }
-		assert Util.ignore(columnName);
-		assert false;
+	@Override
+	public int findColumn(final String columnName) {
+		// System.out.println("findColumn " + columnName);
+		for (int i = 0; i < columns.length; i++) {
+			// System.out.println(i + " " + columns[i].getLabel());
+			if (columns[i].getLabel().equals(columnName)) {
+				return i + 1;
+			}
+		}
+		assert false : "Can't find column '" + columnName + "'. Columns are:\n " + UtilString.valueOfDeep(columns);
 		return -1;
 	}
 
-	public Column getColumn(int columnIndex) {
-		return columns[columnIndex];
-	}
+	// TODO Remove unused code found by UCDetector
+	// public Column getColumn(final int columnIndex) {
+	// return columns[columnIndex];
+	// }
 
+	@Override
 	public boolean first() {
 		currentRow = 1;
 		return nRows > 0;
+	}
+
+	static class ReadCompressedIntsIterator // implements Iterator<Integer>
+	{
+		final int[] readIntOrTwoResult = new int[2];
+		final DataInputStream dataInputStream;
+		int nInts;
+		int nRead = 0;
+		int whichResult = 2;
+
+		ReadCompressedIntsIterator(final DataInputStream _s, final int _nInts) {
+			dataInputStream = _s;
+			nInts = _nInts;
+		}
+
+		boolean finished() {
+			assert !hasNext();
+			return true;
+		}
+
+		void incfNints(final int incf) {
+			assert incf >= 0 && nRead < nInts : incf + " " + nRead + " " + nInts;
+			nInts += incf;
+		}
+
+		boolean hasNext() {
+			return nRead < nInts;
+		}
+
+		public int next() {
+			if (mustRead()) {
+				try {
+					readIntOrTwo(dataInputStream, readIntOrTwoResult);
+					whichResult = 0;
+				} catch (final IOException e) {
+					e.printStackTrace();
+				}
+			}
+			int result = readIntOrTwoResult[whichResult];
+			whichResult++;
+			if (result < 0) {
+				// whichResult was 1 and readIntOrTwoResult[1] is -1
+				assert mustRead() : whichResult + " " + UtilString.valueOfDeep(readIntOrTwoResult) + " nRead=" + nRead
+						+ " nInts=" + nInts;
+				result = next();
+			} else {
+				nRead++;
+				assert hasNext() || mustRead()
+						|| readIntOrTwoResult[whichResult] < 0 : "barf if it is on the last row but reads two values";
+			}
+			return result;
+		}
+
+		private boolean mustRead() {
+			return whichResult > 1;
+		}
+
 	}
 
 	// 00 xxxxxx
@@ -323,75 +319,79 @@ public class MyResultSet implements ResultSet {
 	// 10 xxxxxx,xxxxxxxx
 	// 110 xxxxx,xxxxxxxx,xxxxxxxx
 	// 111 xxxxx,xxxxxxxx,xxxxxxxx,xxxxxxxx
-	static int readIntOrTwo(DataInputStream in, int[] second)
-			throws IOException {
-		int result = -1;
-		second[0] = -1;
-		int n = in.readUnsignedByte();
-		// Util.print("riot " + n);
-		if (n >= 64) {
-			if (n >= 128) {
-				if (n >= 192) {
-					if (n >= 224) {
+	// (highest bytes first)
+	/**
+	 * @param result
+	 *            Updates result[0] with a decoded int in [0, 2^29 - 1], and
+	 *            result[1] with the next decoded int (in which case both are in
+	 *            [0, 7]), or -2 if it only read one int.
+	 */
+	static void readIntOrTwo(final DataInputStream in, final int[] result) throws IOException {
+		result[1] = -2;
+		final int n = in.readUnsignedByte();
+		// System.out.println("riot " + n);
+		if (n >= /* 64 */0b0100_0000) {
+			if (n >= /* 128 */0b1000_0000) {
+				if (n >= /* 192m */0b1100_0000) {
+					if (n >= /* 224 */0b1110_0000) {
 						// starts 111; read 4 bytes
-						result = ((n & 31) << 24)
-								+ (in.readUnsignedByte() << 16)
-								+ (in.readUnsignedByte() << 8)
-								+ in.readUnsignedByte();
+						result[0] = ((n & /* 31 */0b0001_1111) << 24) + (in.readUnsignedByte() << 16)
+								+ (in.readUnsignedByte() << 8) + in.readUnsignedByte();
 					} else {
 						// starts 110; read 3 bytes
-						result = ((n & 31) << 16)
-								+ (in.readUnsignedByte() << 8)
+						result[0] = ((n & /* 31 */0b0001_1111) << 16) + (in.readUnsignedByte() << 8)
 								+ in.readUnsignedByte();
 					}
 				} else {
 					// starts 10; read 2 bytes
-					result = ((n & 63) << 8) + in.readUnsignedByte();
+					result[0] = ((n & /* 63 */0b0011_1111) << 8) + in.readUnsignedByte();
 				}
 			} else {
 				// starts 01; read two half-bytes
-				result = (n & 56) >> 3;
-				second[0] = n & 7;
+				result[0] = (n & /* 56 */0b0011_1000) >> 3;
+				result[1] = n & /* 7 */0b0000_0111;
 			}
 		} else {
-			// starts 0; read 1 bytes
-			result = n;
+			// starts 00; read 1 bytes
+			result[0] = n;
 		}
-		// System.out.println("readIntOrTwo " + result + " " + second[0]);
-		return result;
+		// System.out.println("readIntOrTwo return " +
+		// UtilString.valueOfDeep(result));
 	}
 
 	// 0 xxxxxxx
 	// 10 xxxxxx,xxxxxxxx
 	// 110 xxxxx,xxxxxxxx,xxxxxxxx
 	// 111 xxxxx,xxxxxxxx,xxxxxxxx,xxxxxxxx
-	public static int readInt(DataInputStream in) {
+	// (highest bytes first)
+	/**
+	 * @return decoded int in [0, 2^29 - 1], or -1 and prints a stack trace if
+	 *         there is an error.
+	 */
+	public static int readInt(final DataInputStream in) {
 		int result = -1;
 		try {
-			int n = in.readUnsignedByte();
-			if (n >= 128) {
-				if (n >= 192) {
-					if (n >= 224) {
+			final int n = in.readUnsignedByte();
+			if (n >= /* 128 */0b1000_0000) {
+				if (n >= /* 192m */0b1100_0000) {
+					if (n >= /* 224 */0b1110_0000) {
 						// starts 111; read 4 bytes
-						result = ((n & 31) << 24)
-								+ (in.readUnsignedByte() << 16)
-								+ (in.readUnsignedByte() << 8)
-								+ in.readUnsignedByte();
+						result = ((n & /* 31 */0b0001_1111) << 24) + (in.readUnsignedByte() << 16)
+								+ (in.readUnsignedByte() << 8) + in.readUnsignedByte();
 					} else {
 						// starts 110; read 3 bytes
-						result = ((n & 31) << 16)
-								+ (in.readUnsignedByte() << 8)
+						result = ((n & /* 31 */0b0001_1111) << 16) + (in.readUnsignedByte() << 8)
 								+ in.readUnsignedByte();
 					}
 				} else {
 					// starts 10; read 2 bytes
-					result = ((n & 63) << 8) + in.readUnsignedByte();
+					result = ((n & /* 63 */0b0011_1111) << 8) + in.readUnsignedByte();
 				}
 			} else {
 				// starts 0; read 1 bytes
 				result = n;
 			}
-		} catch (IOException e) {
+		} catch (final IOException e) {
 			e.printStackTrace();
 		}
 		return result;
@@ -401,19 +401,19 @@ public class MyResultSet implements ResultSet {
 	 * @param in
 	 * @return value read from in, or false if there's an error.
 	 */
-	public static boolean readBoolean(DataInputStream in) {
+	public static boolean readBoolean(final DataInputStream in) {
 		boolean result = false;
 		try {
 			result = in.readBoolean();
-			// Util.print("readDouble => " + result);
-		} catch (IOException e) {
+			// System.out.println("readDouble => " + result);
+		} catch (final IOException e) {
 			e.printStackTrace();
 		}
 		// String result = null;
 		// int nChars = readInt(in) - 1;
 		// if (nChars >= 0) {
 		// try {
-		// StringBuffer buf = new StringBuffer(nChars);
+		// StringBuilder buf = new StringBuilder(nChars);
 		// for (int i = 0; i < nChars; i++) {
 		// buf.append(in.readChar());
 		// }
@@ -425,19 +425,19 @@ public class MyResultSet implements ResultSet {
 		return result;
 	}
 
-	public static double readDouble(DataInputStream in) {
+	static double readDouble(final DataInputStream in) {
 		double result = Double.NaN;
 		try {
 			result = in.readDouble();
-			// Util.print("readDouble => " + result);
-		} catch (IOException e) {
+			// System.out.println("readDouble => " + result);
+		} catch (final IOException e) {
 			e.printStackTrace();
 		}
 		// String result = null;
 		// int nChars = readInt(in) - 1;
 		// if (nChars >= 0) {
 		// try {
-		// StringBuffer buf = new StringBuffer(nChars);
+		// StringBuilder buf = new StringBuilder(nChars);
 		// for (int i = 0; i < nChars; i++) {
 		// buf.append(in.readChar());
 		// }
@@ -449,1474 +449,1901 @@ public class MyResultSet implements ResultSet {
 		return result;
 	}
 
-	public static String readString(DataInputStream in) {
+	public static @NonNull String readString(final DataInputStream in) throws IOException {
 		String result = null;
-		try {
-			result = in.readUTF();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		// String result = null;
-		// int nChars = readInt(in) - 1;
-		// if (nChars >= 0) {
 		// try {
-		// StringBuffer buf = new StringBuffer(nChars);
-		// for (int i = 0; i < nChars; i++) {
-		// buf.append(in.readChar());
-		// }
-		// result = buf.toString();
-		// } catch (IOException e) {
+		result = in.readUTF();
+		// } catch (final IOException e) {
 		// e.printStackTrace();
 		// }
-		// }
+		assert result != null;
 		return result;
 	}
 
-	static InputStream readBlob(DataInputStream s) {
-		InputStream result = null;
-		int nBytes = readInt(s) - 1;
-		// Util.print("Blob bytes = " + nBytes);
+	static BufferedImage readBlob(final DataInputStream s) {
+		BufferedImage result = null;
+		final int nBytes = readInt(s) - 1;
+		// System.out.println("Blob bytes = " + nBytes);
 		if (nBytes >= 0) {
+			// <0 means no blob
 			try {
-				byte[] blob = new byte[nBytes];
+				final byte[] blob = new byte[nBytes];
 				s.readFully(blob, 0, nBytes);
-				// Util.print("\nreadBlob " + nBytes);
-				result = new ByteArrayInputStream(blob);
-			} catch (IOException e1) {
+				// System.out.println("\nreadBlob " + nBytes);
+				final ByteArrayInputStream s2 = new ByteArrayInputStream(blob);
+				// result = ImageUtil.readCompatibleImage(s2);
+				result = ImageIO.read(s2);
+			} catch (final IOException e1) {
 				e1.printStackTrace();
 			}
 		}
 		return result;
 	}
 
-	public static abstract class Column {
+	// Blob blob = resultSet.getBlob(index);
+	// InputStream stream = blob.getBinaryStream(0, blob.length());
+	// BufferedImage image = ImageIO.read(stream);
 
-		/**
-		 * This column type contains integers from 0 to about 1,073,741,824
-		 */
-		public final static Object IntegerType = "INTEGER";
+	public static boolean[] intColumnProperties(final ColumnType columnType) {
+		return new boolean[] { isSorted(columnType), isPositive(columnType) };
+	}
 
-		public final static Object StringType = "STRING";
+	private static boolean isPositive(final ColumnType columnType) {
+		boolean result = false;
+		switch (columnType) {
+		case INTEGER:
+		case SORTED_NM_INTEGER:
+			break;
+		case SORTED_MONOTONIC_INTEGER:
+		case POSITIVE_INTEGER:
+			result = true;
+			break;
+		default:
+			assert false : columnType;
+			break;
+		}
+		return result;
+	}
 
-		public final static Object ImageType = "IMAGE";
+	private static boolean isSorted(final ColumnType columnType) {
+		boolean result = false;
+		switch (columnType) {
+		case INTEGER:
+		case POSITIVE_INTEGER:
+			break;
+		case SORTED_MONOTONIC_INTEGER:
+		case SORTED_NM_INTEGER:
+			result = true;
+			break;
+		default:
+			assert false : columnType;
+			break;
+		}
+		return result;
+	}
 
-		/**
-		 * This column type contains integers from 1 to about 1,073,741,824 Each
-		 * value must be at least 1 greater than previous value. Encode as n -
-		 * prev - 1.
-		 */
-		public final static Object SortedIntegerType = "SORTED_INTEGER";
+	/**
+	 * INTEGER contains integers from 0 to about 1,073,741,824
+	 *
+	 * SORTED_INTEGER contains integers from 1 to about 1,073,741,824 Each value
+	 * must be at least 1 greater than previous value. Encode as n - prev - 1.
+	 *
+	 * POSITIVE_INTEGER contains integers from 1 to about 1,073,741,824
+	 *
+	 * SORTED_NM_INTEGER contains integers from 0 to about 1,073,741,824 each
+	 * value must be at least as large as previous value. Encode as n - prev.
+	 */
+	static abstract class Column implements Serializable {
 
-		/**
-		 * This column type contains integers from 1 to about 1,073,741,824
-		 */
-		public final static Object PositiveIntegerType = "POSITIVE_INTEGER";
+		protected final @NonNull String label;
 
-		/**
-		 * This column type contains integers from 0 to about 1,073,741,824 each
-		 * value must be at least as large as previous value. Encode as n -
-		 * prev.
-		 */
-		public final static Object SortedNMIntegerType = "SORTED_NM_INTEGER";
+		Column(final DataInputStream s) throws IOException {
+			label = readString(s);
+		}
 
-		public final static Object DoubleType = "DOUBLE";
+		protected @NonNull String getLabel() {
+			return label;
+		}
 
-		// String name;
-
-		// int type;
+		@Override
+		public String toString() {
+			return UtilString.toString(this, label);
+		}
 
 		protected abstract String getString(int row);
 
-		protected abstract InputStream getBlob(int currentRow);
+		protected abstract BufferedImage getBlob(int currentRow);
 
 		protected abstract int getInt(int row);
 
 		protected abstract double getDouble(int row);
 
-		public Object[] getValues() {
-			return null;
-		}
+		public abstract @NonNull Object[] getValues();
 
 	}
 
-	public class StringColumn extends Column {
-		private static final long serialVersionUID = 3352428345234393804L;
+	private static class StringColumn extends Column {
 
-		// final static int type = StringType;
+		private final @NonNull String[] values;
 
-		private String[] values;
-
-		public StringColumn(DataInputStream s, int nRows1) {
-			values = new String[nRows1];
-			for (int i = 0; i < nRows1; i++) {
-				values[i] = readString(s);
+		StringColumn(final DataInputStream s, final int nRows) throws IOException {
+			super(s);
+			values = new String[nRows];
+			for (int row = 0; row < nRows; row++) {
+				values[row] = readString(s);
 			}
 		}
 
 		@Override
-		protected String getString(int row) {
+		protected String getString(final int row) {
 			return values[row - 1];
 		}
 
 		@Override
-		protected int getInt(int row) {
-			assert false;
+		protected int getInt(final int row) {
+			assert false : "Can't getInt() on a StringColumn: " + this;
 			return Integer.parseInt(values[row - 1]);
 		}
 
 		@Override
-		protected InputStream getBlob(int row) {
-			assert Util.ignore(row);
+		protected BufferedImage getBlob(final int row) {
+			Util.ignore(row);
 			assert false;
 			return null;
 		}
 
 		@Override
-		protected double getDouble(int row) {
+		protected double getDouble(final int row) {
 			assert false;
 			return Double.parseDouble(values[row - 1]);
 		}
 
 		@Override
-		public Object[] getValues() {
-			return values.clone();
+		public @NonNull Object[] getValues() {
+			final String[] result = values.clone();
+			assert result != null;
+			return result;
 		}
 	}
 
-	class DoubleColumn extends Column {
+	private static class DoubleColumn extends Column {
 
-		private static final long serialVersionUID = -512893701109549243L;
+		private final double[] values;
 
-		// final static int type = DoubleType;
-
-		private double[] values;
-
-		public DoubleColumn(DataInputStream s, int nRows1) {
-			values = new double[nRows1];
-			for (int i = 0; i < nRows1; i++) {
-				values[i] = readDouble(s);
+		DoubleColumn(final DataInputStream s, final int nRows) throws IOException {
+			super(s);
+			values = new double[nRows];
+			for (int row = 0; row < nRows; row++) {
+				values[row] = readDouble(s);
 			}
 		}
 
 		@Override
-		protected String getString(int row) {
+		protected String getString(final int row) {
 			assert false;
 			return Double.toString(values[row - 1]);
 		}
 
 		@Override
-		protected int getInt(int row) {
+		protected int getInt(@SuppressWarnings("unused") final int row) {
 			assert false;
-			return (int) values[row - 1];
+			// return (int) values[row - 1];
+			return Integer.MIN_VALUE;
 		}
 
 		@Override
-		protected InputStream getBlob(int row) {
-			assert Util.ignore(row);
-			assert false;
-			return null;
-		}
-
-		@Override
-		protected double getDouble(int row) {
-			return values[row - 1];
-		}
-	}
-
-	class IntColumn extends Column {
-		private static final long serialVersionUID = -241283930914273397L;
-
-		// final static int type = IntegerType;
-
-		private int[] values;
-
-		public IntColumn(DataInputStream s, int nRows1, boolean sorted,
-				boolean positive) throws Exception {
-			// Util.print("IntColumn " + sorted + " " + positive + " " + nRows);
-			values = new int[nRows1];
-			int[] vals = new int[1];
-			int prev = 0;
-			for (int i = 0; i < nRows1; i++) {
-				try {
-					if (sorted) {
-						prev += readIntOrTwo(s, vals);
-						if (positive)
-							prev++;
-						values[i] = prev;
-						if (vals[0] >= 0) {
-							prev += vals[0];
-							if (positive)
-								prev++;
-							values[++i] = prev;
-						}
-					} else if (positive) {
-						values[i] = readIntOrTwo(s, vals) + 1;
-						if (vals[0] >= 0) {
-							values[++i] = vals[0] + 1;
-						}
-					} else {
-						values[i] = readIntOrTwo(s, vals);
-						if (vals[0] >= 0) {
-							values[++i] = vals[0];
-						}
-					}
-				} catch (Exception e) {
-					Util.err("While reading integer from row " + i + " of "
-							+ nRows);
-					for (int j = 0; j <= i; j++) {
-						Util.err("row " + j + " = " + values[j]);
-					}
-					throw (e);
-				}
-			}
-		}
-
-		@Override
-		protected String getString(int row) {
-			assert false;
-			return Integer.toString(values[row - 1]);
-		}
-
-		@Override
-		protected int getInt(int row) {
-			return values[row - 1];
-		}
-
-		@Override
-		protected InputStream getBlob(int row) {
-			assert Util.ignore(row);
+		protected BufferedImage getBlob(@SuppressWarnings("unused") final int row) {
 			assert false;
 			return null;
 		}
 
 		@Override
-		protected double getDouble(int row) {
-			assert false;
+		protected double getDouble(final int row) {
 			return values[row - 1];
 		}
 
+		/**
+		 * new DoubleColumn has already read the column as doubles into values.
+		 * Now convert to Doubles.
+		 */
 		@Override
 		public Object[] getValues() {
-			Integer[] result = new Integer[values.length];
+			final Double[] result = new Double[values.length];
 			for (int i = 0; i < values.length; i++) {
-				result[i] = new Integer(values[i]);
+				result[i] = Double.valueOf(values[i]);
 			}
 			return result;
 		}
 	}
 
-	class BlobColumn extends Column {
-		private static final long serialVersionUID = -4365032224127394378L;
+	private static class IntColumn extends Column {
 
-		// final static int type = ImageType;
+		private final int[] values;
 
-		private InputStream[] values;
-
-		public BlobColumn(DataInputStream s, int nRows1) {
-			values = new InputStream[nRows1];
-			for (int i = 0; i < nRows1; i++) {
-				values[i] = readBlob(s);
+		IntColumn(final DataInputStream s, final int nRows, final boolean[] properties) throws Exception {
+			super(s);
+			final boolean sorted = properties[0];
+			final boolean positive = properties[1];
+			values = new int[nRows];
+			int cumCount = 0;
+			int row = 0;
+			for (final ReadCompressedIntsIterator it = new ReadCompressedIntsIterator(s, nRows); it.hasNext(); row++) {
+				final int value = it.next() + (positive ? 1 : 0);
+				if (sorted) {
+					cumCount += value;
+					values[row] = cumCount;
+				} else {
+					values[row] = value;
+				}
 			}
 		}
 
 		@Override
-		protected String getString(int row) {
-			assert Util.ignore(row);
+		protected String getString(@SuppressWarnings("unused") final int row) {
+			assert false;
+			// return Integer.toString(values[row - 1]);
+			return null;
+		}
+
+		@Override
+		protected int getInt(final int row) {
+			return values[row - 1];
+		}
+
+		@Override
+		protected BufferedImage getBlob(@SuppressWarnings("unused") final int row) {
 			assert false;
 			return null;
 		}
 
 		@Override
-		protected int getInt(int row) {
-			assert Util.ignore(row);
+		protected double getDouble(@SuppressWarnings("unused") final int row) {
+			assert false;
+			// return values[row - 1];
+			return Double.NaN;
+		}
+
+		/**
+		 * new IntColumn has already read the column as ints into values. Now
+		 * convert to Integers.
+		 */
+		@Override
+		public Object[] getValues() {
+			final Integer[] result = new Integer[values.length];
+			for (int i = 0; i < values.length; i++) {
+				result[i] = Integer.valueOf(values[i]);
+			}
+			return result;
+		}
+	}
+
+	private static class BlobColumn extends Column {
+
+		private final BufferedImage[] values;
+
+		BlobColumn(final DataInputStream s, final int nRows) throws IOException {
+			super(s);
+			values = new BufferedImage[nRows];
+			for (int row = 0; row < nRows; row++) {
+				values[row] = readBlob(s);
+			}
+		}
+
+		@Override
+		protected String getString(@SuppressWarnings("unused") final int row) {
+			assert false;
+			return null;
+		}
+
+		@Override
+		protected int getInt(@SuppressWarnings("unused") final int row) {
 			assert false;
 			return -1;
 		}
 
 		@Override
-		protected InputStream getBlob(int row) {
-			assert Util.ignore(row);
+		protected BufferedImage getBlob(final int row) {
 			return values[row - 1];
 		}
 
 		@Override
-		protected double getDouble(int row) {
-			assert Util.ignore(row);
+		protected double getDouble(@SuppressWarnings("unused") final int row) {
 			assert false;
 			return Double.NaN;
 		}
+
+		@Override
+		public Object[] getValues() {
+			assert false;
+			return new Object[0];
+		}
 	}
 
+	@Override
 	public boolean wasNull() {
-		// TODO Auto-generated method stub
+
 		assert false;
 		return false;
 	}
 
-	public boolean getBoolean(int arg0) {
-		assert Util.ignore(arg0);
-		// TODO Auto-generated method stub
+	@Override
+	public boolean getBoolean(@SuppressWarnings("unused") final int arg0) {
 		assert false;
 		return false;
 	}
 
-	public byte getByte(int arg0) {
-		// TODO Auto-generated method stub
+	@Override
+	public byte getByte(@SuppressWarnings("unused") final int arg0) {
 		assert false;
 		return 0;
 	}
 
-	public short getShort(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public short getShort(final int arg0) {
 		assert false;
 		return 0;
 	}
 
-	public long getLong(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public long getLong(final int arg0) {
 		assert false;
 		return 0;
 	}
 
-	public float getFloat(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public float getFloat(final int arg0) {
 		assert false;
 		return 0;
 	}
 
-	public BigDecimal getBigDecimal(int arg0, int arg1) {
-		// TODO Auto-generated method stub
+	@Override
+	@SuppressWarnings({ "deprecation", "unused" })
+	public BigDecimal getBigDecimal(final int arg0, final int arg1) {
 		assert false;
 		return null;
 	}
 
-	public byte[] getBytes(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public byte[] getBytes(final int arg0) {
+		assert false;
+		return new byte[0];
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public Date getDate(final int arg0) {
 		assert false;
 		return null;
 	}
 
-	public Date getDate(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Time getTime(final int arg0) {
 		assert false;
 		return null;
 	}
 
-	public Time getTime(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Timestamp getTimestamp(final int arg0) {
 		assert false;
 		return null;
 	}
 
-	public Timestamp getTimestamp(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public InputStream getAsciiStream(final int arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public InputStream getAsciiStream(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings({ "deprecation", "unused" })
+	@Deprecated
+	@Override
+	public InputStream getUnicodeStream(final int arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public InputStream getUnicodeStream(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public InputStream getBinaryStream(final int arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public InputStream getBinaryStream(int arg0) {
-		// TODO Auto-generated method stub
-		assert false;
-		return null;
-	}
+	@SuppressWarnings("unused")
+	@Override
+	public boolean getBoolean(final String arg0) {
 
-	public boolean getBoolean(String arg0) {
-		// TODO Auto-generated method stub
 		assert false;
 		return false;
 	}
 
-	public byte getByte(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public byte getByte(final String arg0) {
+
 		assert false;
 		return 0;
 	}
 
-	public short getShort(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public short getShort(final String arg0) {
+
 		assert false;
 		return 0;
 	}
 
-	public long getLong(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public long getLong(final String arg0) {
+
 		assert false;
 		return 0;
 	}
 
-	public float getFloat(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public float getFloat(final String arg0) {
+
 		assert false;
 		return 0;
 	}
 
-	public double getDouble(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public double getDouble(final String arg0) {
+
 		assert false;
 		return 0;
 	}
 
-	public BigDecimal getBigDecimal(String arg0, int arg1) {
-		// TODO Auto-generated method stub
+	@Deprecated
+	@SuppressWarnings({ "unused", "deprecation" })
+	@Override
+	public BigDecimal getBigDecimal(final String arg0, final int arg1) {
 		assert false;
 		return null;
 	}
 
-	public byte[] getBytes(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public byte[] getBytes(final String arg0) {
+		assert false;
+		return new byte[0];
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public Date getDate(final String arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public Date getDate(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Time getTime(final String arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public Time getTime(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Timestamp getTimestamp(final String arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public Timestamp getTimestamp(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public InputStream getAsciiStream(final String arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public InputStream getAsciiStream(String arg0) {
-		// TODO Auto-generated method stub
+	@Deprecated
+	@SuppressWarnings({ "unused", "deprecation" })
+	@Override
+	public InputStream getUnicodeStream(final String arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public InputStream getUnicodeStream(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public InputStream getBinaryStream(final String arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public InputStream getBinaryStream(String arg0) {
-		// TODO Auto-generated method stub
-		assert false;
-		return null;
-	}
-
+	@Override
 	public SQLWarning getWarnings() {
-		// TODO Auto-generated method stub
+
 		assert false;
 		return null;
 	}
 
+	@Override
 	public void clearWarnings() {
-		// TODO Auto-generated method stub
-
+		// Ignore
 	}
 
+	@Override
 	public String getCursorName() {
-		// TODO Auto-generated method stub
+
 		assert false;
 		return null;
 	}
 
+	@Override
 	public ResultSetMetaData getMetaData() {
 		return new MyMetaData();
 	}
 
-	public Object getObject(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Object getObject(final int arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public Object getObject(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Object getObject(final String arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public Reader getCharacterStream(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Reader getCharacterStream(final int arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public Reader getCharacterStream(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Reader getCharacterStream(final String arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public BigDecimal getBigDecimal(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public BigDecimal getBigDecimal(final int arg0) {
+
 		assert false;
 		return null;
 	}
 
-	public BigDecimal getBigDecimal(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public BigDecimal getBigDecimal(final String arg0) {
+
 		assert false;
 		return null;
 	}
 
+	@Override
 	public boolean isBeforeFirst() {
-		// TODO Auto-generated method stub
+
 		assert false;
 		return false;
 	}
 
+	@Override
 	public boolean isAfterLast() {
-		// TODO Auto-generated method stub
+
 		assert false;
 		return false;
 	}
 
+	@Override
 	public boolean isFirst() {
-		// TODO Auto-generated method stub
+
 		assert false;
 		return false;
 	}
 
+	@Override
 	public boolean isLast() {
-		// TODO Auto-generated method stub
 		assert false;
 		return false;
 	}
 
+	@Override
 	public boolean last() {
 		currentRow = nRows;
 		return nRows > 0;
 	}
 
-	public boolean relative(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public boolean relative(final int arg0) {
 		assert false;
 		return false;
 	}
 
+	@Override
 	public boolean previous() {
-		// TODO Auto-generated method stub
 		assert false;
 		return false;
 	}
 
-	public void setFetchDirection(int arg0) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void setFetchDirection(final int arg0) {
+		// Ignore
 	}
 
+	@Override
 	public int getFetchDirection() {
-		// TODO Auto-generated method stub
 		assert false;
 		return 0;
 	}
 
-	public void setFetchSize(int arg0) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void setFetchSize(final int arg0) {
+		// Ignore
 	}
 
+	@Override
 	public int getFetchSize() {
-		// TODO Auto-generated method stub
 		assert false;
 		return 0;
 	}
 
+	@Override
 	public int getType() {
-		// TODO Auto-generated method stub
-		assert false;
-		return 0;
+		return ResultSet.TYPE_SCROLL_INSENSITIVE;
 	}
 
+	@Override
 	public int getConcurrency() {
-		// TODO Auto-generated method stub
 		assert false;
 		return 0;
 	}
 
+	@Override
 	public boolean rowUpdated() {
-		// TODO Auto-generated method stub
 		assert false;
 		return false;
 	}
 
+	@Override
 	public boolean rowInserted() {
-		// TODO Auto-generated method stub
 		assert false;
 		return false;
 	}
 
+	@Override
 	public boolean rowDeleted() {
-		// TODO Auto-generated method stub
 		assert false;
 		return false;
 	}
 
-	public void updateNull(int arg0) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateNull(final int arg0) {
+		// Ignore
 	}
 
-	public void updateBoolean(int arg0, boolean arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBoolean(final int arg0, final boolean arg1) {
+		// Ignore
 	}
 
-	public void updateByte(int arg0, byte arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateByte(final int arg0, final byte arg1) {
+		// Ignore
 	}
 
-	public void updateShort(int arg0, short arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateShort(final int arg0, final short arg1) {
+		// Ignore
 	}
 
-	public void updateInt(int arg0, int arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateInt(final int arg0, final int arg1) {
+		// Ignore
 	}
 
-	public void updateLong(int arg0, long arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateLong(final int arg0, final long arg1) {
+		// Ignore
 	}
 
-	public void updateFloat(int arg0, float arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateFloat(final int arg0, final float arg1) {
+		// Ignore
 	}
 
-	public void updateDouble(int arg0, double arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateDouble(final int arg0, final double arg1) {
+		// Ignore
 	}
 
-	public void updateBigDecimal(int arg0, BigDecimal arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBigDecimal(final int arg0, final BigDecimal arg1) {
+		// Ignore
 	}
 
-	public void updateString(int arg0, String arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateString(final int arg0, final String arg1) {
+		// Ignore
 	}
 
-	public void updateBytes(int arg0, byte[] arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBytes(final int arg0, final byte[] arg1) {
+		// Ignore
 	}
 
-	public void updateDate(int arg0, Date arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateDate(final int arg0, final Date arg1) {
+		// Ignore
 	}
 
-	public void updateTime(int arg0, Time arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateTime(final int arg0, final Time arg1) {
+		// Ignore
 	}
 
-	public void updateTimestamp(int arg0, Timestamp arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateTimestamp(final int arg0, final Timestamp arg1) {
+		// Ignore
 	}
 
-	public void updateAsciiStream(int arg0, InputStream arg1, int arg2) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateAsciiStream(final int arg0, final InputStream arg1, final int arg2) {
+		// Ignore
 	}
 
-	public void updateBinaryStream(int arg0, InputStream arg1, int arg2) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBinaryStream(final int arg0, final InputStream arg1, final int arg2) {
+		// Ignore
 	}
 
-	public void updateCharacterStream(int arg0, Reader arg1, int arg2) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateCharacterStream(final int arg0, final Reader arg1, final int arg2) {
+		// Ignore
 	}
 
-	public void updateObject(int arg0, Object arg1, int arg2) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateObject(final int arg0, final Object arg1, final int arg2) {
+		// Ignore
 	}
 
-	public void updateObject(int arg0, Object arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateObject(final int arg0, final Object arg1) {
+		// Ignore
 	}
 
-	public void updateNull(String arg0) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateNull(final String arg0) {
+		// Ignore
 	}
 
-	public void updateBoolean(String arg0, boolean arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBoolean(final String arg0, final boolean arg1) {
+		// Ignore
 	}
 
-	public void updateByte(String arg0, byte arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateByte(final String arg0, final byte arg1) {
+		// Ignore
 	}
 
-	public void updateShort(String arg0, short arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateShort(final String arg0, final short arg1) {
+		// Ignore
 	}
 
-	public void updateInt(String arg0, int arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateInt(final String arg0, final int arg1) {
+		// Ignore
 	}
 
-	public void updateLong(String arg0, long arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateLong(final String arg0, final long arg1) {
+		// Ignore
 	}
 
-	public void updateFloat(String arg0, float arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateFloat(final String arg0, final float arg1) {
+		// Ignore
 	}
 
-	public void updateDouble(String arg0, double arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateDouble(final String arg0, final double arg1) {
+		// Ignore
 	}
 
-	public void updateBigDecimal(String arg0, BigDecimal arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBigDecimal(final String arg0, final BigDecimal arg1) {
+		// Ignore
 	}
 
-	public void updateString(String arg0, String arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateString(final String arg0, final String arg1) {
+		// Ignore
 	}
 
-	public void updateBytes(String arg0, byte[] arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBytes(final String arg0, final byte[] arg1) {
+		// Ignore
 	}
 
-	public void updateDate(String arg0, Date arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateDate(final String arg0, final Date arg1) {
+		// Ignore
 	}
 
-	public void updateTime(String arg0, Time arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateTime(final String arg0, final Time arg1) {
+		// Ignore
 	}
 
-	public void updateTimestamp(String arg0, Timestamp arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateTimestamp(final String arg0, final Timestamp arg1) {
+		// Ignore
 	}
 
-	public void updateAsciiStream(String arg0, InputStream arg1, int arg2) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateAsciiStream(final String arg0, final InputStream arg1, final int arg2) {
+		// Ignore
 	}
 
-	public void updateBinaryStream(String arg0, InputStream arg1, int arg2) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBinaryStream(final String arg0, final InputStream arg1, final int arg2) {
+		// Ignore
 	}
 
-	public void updateCharacterStream(String arg0, Reader arg1, int arg2) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateCharacterStream(final String arg0, final Reader arg1, final int arg2) {
+		// Ignore
 	}
 
-	public void updateObject(String arg0, Object arg1, int arg2) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateObject(final String arg0, final Object arg1, final int arg2) {
+		// Ignore
 	}
 
-	public void updateObject(String arg0, Object arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateObject(final String arg0, final Object arg1) {
+		// Ignore
 	}
 
+	@Override
 	public void insertRow() {
-		// TODO Auto-generated method stub
-
+		// Ignore
 	}
 
+	@Override
 	public void updateRow() {
-		// TODO Auto-generated method stub
-
+		// Ignore
 	}
 
+	@Override
 	public void deleteRow() {
-		// TODO Auto-generated method stub
-
+		// Ignore
 	}
 
+	@Override
 	public void refreshRow() {
-		// TODO Auto-generated method stub
-
+		// Ignore
 	}
 
+	@Override
 	public void cancelRowUpdates() {
-		// TODO Auto-generated method stub
-
+		// Ignore
 	}
 
+	@Override
 	public void moveToInsertRow() {
-		// TODO Auto-generated method stub
-
+		// Ignore
 	}
 
+	@Override
 	public void moveToCurrentRow() {
-		// TODO Auto-generated method stub
-
+		// Ignore
 	}
 
+	@Override
 	public Statement getStatement() {
-		// TODO Auto-generated method stub
 		assert false;
 		return null;
 	}
 
-	public Object getObject(int arg0, Map<String,Class<?>> arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Object getObject(final int arg0, final Map<String, Class<?>> arg1) {
 		assert false;
 		return null;
 	}
 
-	public Ref getRef(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Ref getRef(final int arg0) {
 		assert false;
 		return null;
 	}
 
-	public Blob getBlob(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Blob getBlob(final int arg0) {
 		assert false;
 		return null;
 	}
 
-	public Clob getClob(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Clob getClob(final int arg0) {
 		assert false;
 		return null;
 	}
 
-	public Array getArray(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Array getArray(final int arg0) {
 		assert false;
 		return null;
 	}
 
-	public Object getObject(String arg0, Map<String,Class<?>> arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Object getObject(final String arg0, final Map<String, Class<?>> arg1) {
 		assert false;
 		return null;
 	}
 
-	public Ref getRef(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Ref getRef(final String arg0) {
 		assert false;
 		return null;
 	}
 
-	public Blob getBlob(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Blob getBlob(final String arg0) {
 		assert false;
 		return null;
 	}
 
-	public Clob getClob(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Clob getClob(final String arg0) {
 		assert false;
 		return null;
 	}
 
-	public Array getArray(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Array getArray(final String arg0) {
 		assert false;
 		return null;
 	}
 
-	public Date getDate(int arg0, Calendar arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Date getDate(final int arg0, final Calendar arg1) {
 		assert false;
 		return null;
 	}
 
-	public Date getDate(String arg0, Calendar arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Date getDate(final String arg0, final Calendar arg1) {
 		assert false;
 		return null;
 	}
 
-	public Time getTime(int arg0, Calendar arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Time getTime(final int arg0, final Calendar arg1) {
 		assert false;
 		return null;
 	}
 
-	public Time getTime(String arg0, Calendar arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Time getTime(final String arg0, final Calendar arg1) {
 		assert false;
 		return null;
 	}
 
-	public Timestamp getTimestamp(int arg0, Calendar arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Timestamp getTimestamp(final int arg0, final Calendar arg1) {
 		assert false;
 		return null;
 	}
 
-	public Timestamp getTimestamp(String arg0, Calendar arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public Timestamp getTimestamp(final String arg0, final Calendar arg1) {
 		assert false;
 		return null;
 	}
 
-	public URL getURL(int arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public URL getURL(final int arg0) {
 		assert false;
 		return null;
 	}
 
-	public URL getURL(String arg0) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public URL getURL(final String arg0) {
 		assert false;
 		return null;
 	}
 
-	public void updateRef(int arg0, Ref arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateRef(final int arg0, final Ref arg1) {
+		// Ignore
 	}
 
-	public void updateRef(String arg0, Ref arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateRef(final String arg0, final Ref arg1) {
+		// Ignore
 	}
 
-	public void updateBlob(int arg0, Blob arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBlob(final int arg0, final Blob arg1) {
+		// Ignore
 	}
 
-	public void updateBlob(String arg0, Blob arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateBlob(final String arg0, final Blob arg1) {
+		// Ignore
 	}
 
-	public void updateClob(int arg0, Clob arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public void updateClob(final int arg0, final Clob arg1) {
+		// Ignore
 	}
 
-	public void updateClob(String arg0, Clob arg1) {
-		// TODO Auto-generated method stub
+	@SuppressWarnings("unused")
+	@Override
+	public void updateClob(final String arg0, final Clob arg1) {
+		// Ignore
 	}
 
-	public void updateArray(int arg0, Array arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateArray(final int arg0, final Array arg1) {
+		// Ignore
 	}
 
-	public void updateArray(String arg0, Array arg1) {
-		// TODO Auto-generated method stub
-
+	@SuppressWarnings("unused")
+	@Override
+	public void updateArray(final String arg0, final Array arg1) {
+		// Ignore
 	}
 
-	public static int nRows(ResultSet rs) throws SQLException {
-		int row = rs.getRow();
-		rs.last();
-		int result = rs.getRow();
-		resetRow(rs, row);
+	public int nRows() throws SQLException {
+		return nRows(this);
+	}
+
+	public static int nRowsNoThrow(final ResultSet rs) {
+		int result = -1;
+		try {
+			result = nRows(rs);
+		} catch (final Throwable e) {
+			e.printStackTrace();
+		}
 		return result;
 	}
 
-	static void resetRow(ResultSet rs, int row) throws SQLException {
-		if (row == 0)
+	/**
+	 * @return -1 if ResultSet.TYPE_FORWARD_ONLY;
+	 *
+	 *         nRows otherwise
+	 */
+	public static int nRows(final ResultSet rs) throws SQLException {
+		int result = -1;
+		if (rs.getType() != ResultSet.TYPE_FORWARD_ONLY) {
+			final int row = rs.getRow();
+			rs.last();
+			result = rs.getRow();
+			resetRow(rs, row);
+		}
+		return result;
+	}
+
+	public static void resetRow(final ResultSet rs, final int row) throws SQLException {
+		if (row == 0) {
 			// absolute(0) may barf
 			rs.beforeFirst();
-		else
+		} else {
 			rs.absolute(row);
-	}
-
-	public String valueOfDeep(int maxRows) {
-		List<Object> types = new LinkedList<Object>();
-		for (int i = 0; i < columns.length; i++) {
-			Column column = columns[i];
-			Object type = null;
-			if (column instanceof IntColumn)
-				type = Column.IntegerType;
-			else if (column instanceof BlobColumn)
-				type = Column.ImageType;
-			else if (column instanceof StringColumn)
-				type = Column.ImageType;
-			else if (column instanceof StringColumn)
-				type = Column.StringType;
-			types.add(type);
 		}
-		return valueOfDeep(this, types, maxRows);
 	}
 
-	public static String valueOfDeep(ResultSet result, List<Object> types, int maxRows) {
-		if (result == null)
-			return "<NULL ResultSet>";
-		StringBuffer buf = new StringBuffer();
+	static List<Object> valueOfSingleRowRS(final ResultSet rs, final String SQL) {
+		List<Object> result = null;
 		try {
-			int nRows = MyResultSet.nRows(result);
-			int nCols = types.size();
-			// buf.append(nRows).append(" rows, ").append(nCols).append(
-			// " cols in result set");
-			int row = result.getRow();
-			result.beforeFirst();
-			for (int i = 0; i < nRows && (maxRows < 0 || i < maxRows); i++) {
-				result.next();
-				buf.append("\n");
-				for (int j = 0; j < nCols; j++) {
-					Object type = types.get(j);
-					if (type == MyResultSet.Column.IntegerType
-							|| type == MyResultSet.Column.SortedIntegerType
-							|| type == MyResultSet.Column.SortedNMIntegerType
-							|| type == MyResultSet.Column.PositiveIntegerType)
-						buf.append(result.getInt(j + 1)).append("\t");
-					else if (type == MyResultSet.Column.StringType)
-						buf.append(result.getString(j + 1)).append("\t");
-					else if (type == MyResultSet.Column.DoubleType)
-						buf.append(result.getDouble(j + 1)).append("\t");
-					else if (type == MyResultSet.Column.ImageType)
-						buf.append("<image>\t");
-					else
-						assert false : "Unknown ColumnType: " + type;
-				}
-			}
-			if (nRows > maxRows) {
-				buf.append("\n... ").append(nRows - maxRows).append(
-						" more records");
-			}
-			resetRow(result, row);
-		} catch (SQLException e) {
+			final int nRows = MyResultSet.nRows(rs);
+			assert nRows == 1 : nRows;
+			final int row = rs.getRow();
+			rs.beforeFirst();
+			rs.next();
+			result = getRowValue(rs, SQL);
+			resetRow(rs, row);
+		} catch (final SQLException e) {
+			System.err.println("For query " + SQL);
 			e.printStackTrace();
 		}
-		return buf.toString();
+		return result;
+	}
+
+	public static List<Object> getRowValue(final ResultSet rs, final @Nullable String sql) {
+		List<Object> result = null;
+		try {
+			final ResultSetMetaData metaData = rs.getMetaData();
+			final int nCols = metaData.getColumnCount();
+			result = new ArrayList<>(nCols);
+			for (int j = 1; j <= nCols; j++) {
+				final int type = metaData.getColumnType(j);
+				try {
+					switch (type) {
+					case java.sql.Types.BIT:
+					case java.sql.Types.BIGINT:
+					case java.sql.Types.INTEGER:
+					case java.sql.Types.SMALLINT:
+					case java.sql.Types.TINYINT:
+					case java.sql.Types.DECIMAL:
+						result.add(rs.getInt(j));
+						break;
+					case java.sql.Types.VARBINARY:
+					case java.sql.Types.CHAR:
+					case java.sql.Types.VARCHAR:
+						result.add(rs.getString(j));
+						break;
+					case java.sql.Types.DOUBLE:
+					case java.sql.Types.NUMERIC:
+						result.add(rs.getDouble(j));
+						break;
+					case java.sql.Types.BLOB:
+						result.add(rs.getBlob(j));
+						break;
+					default:
+						final String typeName = metaData.getColumnTypeName(j);
+						switch (typeName) {
+						case "MEDIUMBLOB":
+							result.add(rs.getBlob(j));
+							break;
+						case "NUMBER":
+							result.add(rs.getBigDecimal(j));
+							break;
+						case "LONGBLOB":
+						case "VARCHAR":
+							result.add(rs.getString(j));
+							break;
+						default:
+							logp("For query " + sql + "\nUnknown ColumnType for column " + j + ": " + type
+									+ " getColumnTypeName=" + typeName, MyLogger.SEVERE, "valueOfSingleRowRS");
+							break;
+						}
+					}
+				} catch (final SQLException e) {
+					System.err.println("For column " + j + " (" + metaData.getColumnTypeName(j) + ")");
+					throw (e);
+				}
+			}
+		} catch (final SQLException e) {
+			System.err.println("For query " + sql);
+			e.printStackTrace();
+		}
+		return result;
+	}
+
+	public String valueOfDeep(final int maxRows) {
+		return valueOfDeep(this, maxRows);
+	}
+
+	public static String valueOfDeep(final ResultSet rs) {
+		return valueOfDeep(rs, Integer.MAX_VALUE);
+	}
+
+	public static String valueOfDeep(final ResultSet rs, final int maxRows) {
+		assert maxRows > 0 : maxRows;
+		String result = "";
+		if (rs == null) {
+			result = "<NULL ResultSet>";
+		} else {
+			try {
+				final FormattedTableBuilder align = new FormattedTableBuilder();
+				final ResultSetMetaData metaData = rs.getMetaData();
+				final int nRows = MyResultSet.nRows(rs);
+				final int nCols = metaData.getColumnCount();
+				final StringBuilder buf = addHeader(metaData, nRows, nCols, align);
+				if (nRows >= 0) {
+					// nRows < 0 most likely means that rs is FORWARD_ONLY
+					align.addLine();
+					final int originalRow = rs.getRow();
+					rs.beforeFirst();
+					for (int row = 0; row < nRows && row < maxRows; row++) {
+						rs.next();
+						// buf.append("\n");
+						valueOfDeepInternal(rs, align, metaData, nCols);
+					}
+					buf.append("\n").append(align.format());
+					if (nRows > maxRows) {
+						buf.append("\n... ").append(UtilString.addCommas(nRows - maxRows)).append(" more records");
+					}
+					resetRow(rs, originalRow);
+				}
+				result = buf.toString();
+			} catch (final SQLException e) {
+				e.printStackTrace();
+			}
+		}
+		return result;
+	}
+
+	private static void valueOfDeepInternal(final ResultSet rs, final FormattedTableBuilder align,
+			final ResultSetMetaData metaData, final int nCols) throws SQLException {
+		final List<Object> fields = new ArrayList<>(nCols);
+		for (int j = 1; j <= nCols; j++) {
+			final int type = metaData.getColumnType(j);
+			switch (type) {
+			case java.sql.Types.BIT:
+			case java.sql.Types.VARBINARY:
+			case java.sql.Types.BIGINT:
+			case java.sql.Types.INTEGER:
+			case java.sql.Types.SMALLINT:
+			case java.sql.Types.TINYINT:
+				// fields.add(UtilString.addCommas(rs.getInt(j), 6));
+				fields.add(rs.getInt(j));
+				break;
+			case java.sql.Types.CHAR:
+			case java.sql.Types.VARCHAR:
+				fields.add("\"" + rs.getString(j) + "\"");
+				break;
+			case java.sql.Types.DOUBLE:
+				fields.add(rs.getDouble(j));
+				break;
+			case java.sql.Types.BLOB:
+				fields.add("<image>");
+				break;
+			default:
+				fields.add(valueOfMiscType(rs, metaData, j, type));
+			}
+		}
+		align.addLine(fields);
+	}
+
+	private static Object valueOfMiscType(final ResultSet rs, final ResultSetMetaData metaData, final int j,
+			final int type) throws SQLException {
+		Object value = null;
+		final String typeName = metaData.getColumnTypeName(j);
+		switch (typeName) {
+		case "MEDIUMBLOB":
+			value = "<image>";
+			break;
+		case "NUMBER":
+			value = rs.getBigDecimal(j);
+			break;
+		default:
+			logp("Unknown ColumnType for column " + j + ": " + type + " getColumnTypeName=" + typeName, MyLogger.SEVERE,
+					"valueOfDeep");
+			break;
+		}
+		return value;
+	}
+
+	private static StringBuilder addHeader(final ResultSetMetaData metaData, final int nRows, final int nCols,
+			final FormattedTableBuilder align) throws SQLException {
+		final StringBuilder buf = new StringBuilder();
+		buf.append(UtilString.addCommas(nRows)).append(" rows, ").append(nCols).append(" cols in result set");
+		if (nRows > 0) {
+			buf.append("\n\n");
+			// for (int row = 0; row < 4; row++) {
+			final List<String> fields = new ArrayList<>(nCols);
+			for (int col = 1; col <= nCols; col++) {
+				// switch (row) {
+				// case 0:
+				// fields.add("Column " + col + "/name/type");
+				// break;
+				// case 1:
+
+				fields.add(metaData.getColumnLabel(col));
+
+				// break;
+				// case 2:
+				// fields.add("(" + metaData.getColumnTypeName(col));
+				// break;
+				// case 3:
+				// fields.add(metaData.getColumnClassName(col) + ")");
+				// break;
+				//
+				// default:
+				// assert false : col;
+				// break;
+				// }
+			}
+			align.addLine(fields);
+		}
+		return buf;
 	}
 
 	class MyMetaData implements ResultSetMetaData {
 
-		public String getCatalogName(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@Override
+		public String toString() {
+			return UtilString.toString(this, UtilString.valueOfDeep(columns));
+		}
+
+		@SuppressWarnings("unused")
+		@Override
+		public String getCatalogName(final int column) throws SQLException {
 			return null;
 		}
 
-		public String getColumnClassName(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public String getColumnClassName(final int column) throws SQLException {
 			return null;
 		}
 
+		@SuppressWarnings("unused")
+		@Override
 		public int getColumnCount() throws SQLException {
-			return MyResultSet.this.getColumnCount();
+			return columns.length;
 		}
 
-		public int getColumnDisplaySize(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public int getColumnDisplaySize(final int column) throws SQLException {
 			return 0;
 		}
 
-		public String getColumnLabel(int column) throws SQLException {
-			// TODO Auto-generated method stub
-			return null;
+		/**
+		 * @throws SQLException
+		 */
+		@Override
+		public String getColumnLabel(final int column) throws SQLException {
+			return columns[column - 1].getLabel();
 		}
 
-		public String getColumnName(int column) throws SQLException {
-			// TODO Auto-generated method stub
-			return null;
+		@Override
+		public String getColumnName(final int column) throws SQLException {
+			return getColumnLabel(column);
 		}
 
-		public int getColumnType(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		/**
+		 * @throws SQLException
+		 */
+		@Override
+		public int getColumnType(final int column) throws SQLException {
+			int result = -1;
+			switch (columnTypes.get(column - 1)) {
+			case INTEGER:
+			case SORTED_MONOTONIC_INTEGER:
+			case POSITIVE_INTEGER:
+			case SORTED_NM_INTEGER:
+				result = java.sql.Types.INTEGER;
+				break;
+			case STRING:
+				result = java.sql.Types.VARCHAR;
+				break;
+			case DOUBLE:
+				result = java.sql.Types.DOUBLE;
+				break;
+			case IMAGE:
+				result = java.sql.Types.BLOB;
+				break;
+
+			default:
+				break;
+			}
+			return result;
+		}
+
+		/**
+		 * @throws SQLException
+		 */
+		@Override
+		public String getColumnTypeName(final int column) throws SQLException {
+			String result = "Unknown";
+			switch (columnTypes.get(column - 1)) {
+			case INTEGER:
+			case SORTED_MONOTONIC_INTEGER:
+			case POSITIVE_INTEGER:
+			case SORTED_NM_INTEGER:
+				result = "INTEGER";
+				break;
+			case STRING:
+				result = "VARCHAR";
+				break;
+			case DOUBLE:
+				result = "DOUBLE";
+				break;
+			case IMAGE:
+				result = "BLOB";
+				break;
+
+			default:
+				break;
+			}
+			return result;
+		}
+
+		@SuppressWarnings("unused")
+		@Override
+		public int getPrecision(final int column) throws SQLException {
 			return 0;
 		}
 
-		public String getColumnTypeName(int column) throws SQLException {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
-		public int getPrecision(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public int getScale(final int column) throws SQLException {
 			return 0;
 		}
 
-		public int getScale(int column) throws SQLException {
-			// TODO Auto-generated method stub
-			return 0;
-		}
-
-		public String getSchemaName(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public String getSchemaName(final int column) throws SQLException {
 			return null;
 		}
 
-		public String getTableName(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public String getTableName(final int column) throws SQLException {
 			return null;
 		}
 
-		public boolean isAutoIncrement(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public boolean isAutoIncrement(final int column) throws SQLException {
 			return false;
 		}
 
-		public boolean isCaseSensitive(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public boolean isCaseSensitive(final int column) throws SQLException {
 			return false;
 		}
 
-		public boolean isCurrency(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public boolean isCurrency(final int column) throws SQLException {
 			return false;
 		}
 
-		public boolean isDefinitelyWritable(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public boolean isDefinitelyWritable(final int column) throws SQLException {
 			return false;
 		}
 
-		public int isNullable(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public int isNullable(final int column) throws SQLException {
 			return 0;
 		}
 
-		public boolean isReadOnly(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public boolean isReadOnly(final int column) throws SQLException {
 			return false;
 		}
 
-		public boolean isSearchable(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public boolean isSearchable(final int column) throws SQLException {
 			return false;
 		}
 
-		public boolean isSigned(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public boolean isSigned(final int column) throws SQLException {
 			return false;
 		}
 
-		public boolean isWritable(int column) throws SQLException {
-			// TODO Auto-generated method stub
+		@SuppressWarnings("unused")
+		@Override
+		public boolean isWritable(final int column) throws SQLException {
 			return false;
 		}
 
-//		public boolean isWrapperFor(Class arg0) throws SQLException {
-//			// TODO Auto-generated method stub
-//			return false;
-//		}
-//
-//		public Object unwrap(Class arg0) throws SQLException {
-//			// TODO Auto-generated method stub
-//			return null;
-//		}
+		@SuppressWarnings("unused")
+		@Override
+		public boolean isWrapperFor(final Class<?> iface) throws SQLException {
+			return false;
+		}
+
+		@SuppressWarnings("unused")
+		@Override
+		public <T> T unwrap(final Class<T> iface) throws SQLException {
+			return null;
+		}
 
 	}
 
 	/**
-	 * @throws SQLException  
+	 * @throws SQLException
 	 */
+	@Override
 	public int getHoldability() throws SQLException {
-		// TODO Auto-generated method stub
 		return 0;
 	}
 
 	/**
-	 * @param arg0 
-	 * @throws SQLException  
+	 * @param arg0
+	 * @throws SQLException
 	 */
-	public Reader getNCharacterStream(int arg0) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public Reader getNCharacterStream(final int arg0) throws SQLException {
 		return null;
 	}
 
 	/**
-	 * @param arg0  
-	 * @throws SQLException 
+	 * @param arg0
+	 * @throws SQLException
 	 */
-	public Reader getNCharacterStream(String arg0) throws SQLException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-//	public NClob getNClob(int arg0) throws SQLException {
-//		// TODO Auto-generated method stub
-//		return null;
-//	}
-//
-//	public NClob getNClob(String arg0) throws SQLException {
-//		// TODO Auto-generated method stub
-//		return null;
-//	}
-
-	@SuppressWarnings("unused")
-	public String getNString(int arg0) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public Reader getNCharacterStream(final String arg0) throws SQLException {
 		return null;
 	}
 
 	@SuppressWarnings("unused")
-	public String getNString(String arg0) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public NClob getNClob(final int arg0) throws SQLException {
 		return null;
 	}
 
-//	public RowId getRowId(int arg0) throws SQLException {
-//		// TODO Auto-generated method stub
-//		return null;
-//	}
-//
-//	public RowId getRowId(String arg0) throws SQLException {
-//		// TODO Auto-generated method stub
-//		return null;
-//	}
-//
-//	public SQLXML getSQLXML(int arg0) throws SQLException {
-//		// TODO Auto-generated method stub
-//		return null;
-//	}
-//
-//	public SQLXML getSQLXML(String arg0) throws SQLException {
-//		// TODO Auto-generated method stub
-//		return null;
-//	}
+	@SuppressWarnings("unused")
+	@Override
+	public NClob getNClob(final String arg0) throws SQLException {
+		return null;
+	}
 
 	@SuppressWarnings("unused")
+	@Override
+	public String getNString(final int arg0) throws SQLException {
+		return null;
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public String getNString(final String arg0) throws SQLException {
+		return null;
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public RowId getRowId(final int arg0) throws SQLException {
+		return null;
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public RowId getRowId(final String arg0) throws SQLException {
+		return null;
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public SQLXML getSQLXML(final int arg0) throws SQLException {
+		return null;
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public SQLXML getSQLXML(final String arg0) throws SQLException {
+		return null;
+	}
+
+	@SuppressWarnings("unused")
+	@Override
 	public boolean isClosed() throws SQLException {
-		// TODO Auto-generated method stub
 		return false;
 	}
 
 	@SuppressWarnings("unused")
-	public void updateAsciiStream(int arg0, InputStream arg1)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateAsciiStream(final int arg0, final InputStream arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateAsciiStream(String arg0, InputStream arg1)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateAsciiStream(final String arg0, final InputStream arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateAsciiStream(int arg0, InputStream arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateAsciiStream(final int arg0, final InputStream arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateAsciiStream(String arg0, InputStream arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateAsciiStream(final String arg0, final InputStream arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateBinaryStream(int arg0, InputStream arg1)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateBinaryStream(final int arg0, final InputStream arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateBinaryStream(String arg0, InputStream arg1)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateBinaryStream(final String arg0, final InputStream arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateBinaryStream(int arg0, InputStream arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateBinaryStream(final int arg0, final InputStream arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateBinaryStream(String arg0, InputStream arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateBinaryStream(final String arg0, final InputStream arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateBlob(int arg0, InputStream arg1) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateBlob(final int arg0, final InputStream arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateBlob(String arg0, InputStream arg1) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateBlob(final String arg0, final InputStream arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateBlob(int arg0, InputStream arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateBlob(final int arg0, final InputStream arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateBlob(String arg0, InputStream arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateBlob(final String arg0, final InputStream arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateCharacterStream(int arg0, Reader arg1)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateCharacterStream(final int arg0, final Reader arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateCharacterStream(String arg0, Reader arg1)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateCharacterStream(final String arg0, final Reader arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateCharacterStream(int arg0, Reader arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateCharacterStream(final int arg0, final Reader arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateCharacterStream(String arg0, Reader arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateCharacterStream(final String arg0, final Reader arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateClob(int arg0, Reader arg1) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateClob(final int arg0, final Reader arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateClob(String arg0, Reader arg1) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateClob(final String arg0, final Reader arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateClob(int arg0, Reader arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateClob(final int arg0, final Reader arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateClob(String arg0, Reader arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateClob(final String arg0, final Reader arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateNCharacterStream(int arg0, Reader arg1)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateNCharacterStream(final int arg0, final Reader arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateNCharacterStream(String arg0, Reader arg1)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateNCharacterStream(final String arg0, final Reader arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateNCharacterStream(int arg0, Reader arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateNCharacterStream(final int arg0, final Reader arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateNCharacterStream(String arg0, Reader arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
-	}
-
-//	public void updateNClob(int arg0, NClob arg1) throws SQLException {
-//		// TODO Auto-generated method stub
-//	}
-//
-//	public void updateNClob(String arg0, NClob arg1) throws SQLException {
-//		// TODO Auto-generated method stub
-//	}
-
-	@SuppressWarnings("unused")
-	public void updateNClob(int arg0, Reader arg1) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateNCharacterStream(final String arg0, final Reader arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateNClob(String arg0, Reader arg1) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateNClob(final int arg0, final NClob arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateNClob(int arg0, Reader arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateNClob(final String arg0, final NClob arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateNClob(String arg0, Reader arg1, long arg2)
-			throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateNClob(final int arg0, final Reader arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateNString(int arg0, String arg1) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateNClob(final String arg0, final Reader arg1) throws SQLException {
+		// Ignore
 	}
 
 	@SuppressWarnings("unused")
-	public void updateNString(String arg0, String arg1) throws SQLException {
-		// TODO Auto-generated method stub
+	@Override
+	public void updateNClob(final int arg0, final Reader arg1, final long arg2) throws SQLException {
+		// Ignore
 	}
 
-//	public void updateRowId(int arg0, RowId arg1) throws SQLException {
-//		// TODO Auto-generated method stub
-//	}
-//
-//	public void updateRowId(String arg0, RowId arg1) throws SQLException {
-//		// TODO Auto-generated method stub
-//	}
-//
-//	public void updateSQLXML(int arg0, SQLXML arg1) throws SQLException {
-//		// TODO Auto-generated method stub
-//	}
-//
-//	public void updateSQLXML(String arg0, SQLXML arg1) throws SQLException {
-//		// TODO Auto-generated method stub
-//	}
+	@SuppressWarnings("unused")
+	@Override
+	public void updateNClob(final String arg0, final Reader arg1, final long arg2) throws SQLException {
+		// Ignore
+	}
 
-//	@SuppressWarnings("unused")
-//	public boolean isWrapperFor(Class arg0) throws SQLException {
-//		// TODO Auto-generated method stub
-//		return false;
-//	}
+	@SuppressWarnings("unused")
+	@Override
+	public void updateNString(final int arg0, final String arg1) throws SQLException {
+		// Ignore
+	}
 
-//	@SuppressWarnings("unused")
-//	public Object unwrap(Class arg0) throws SQLException {
-//		// TODO Auto-generated method stub
-//		return null;
-//	}
+	@SuppressWarnings("unused")
+	@Override
+	public void updateNString(final String arg0, final String arg1) throws SQLException {
+		// Ignore
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public void updateRowId(final int arg0, final RowId arg1) throws SQLException {
+		// Ignore
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public void updateRowId(final String arg0, final RowId arg1) throws SQLException {
+		// Ignore
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public void updateSQLXML(final int arg0, final SQLXML arg1) throws SQLException {
+		// Ignore
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public void updateSQLXML(final String arg0, final SQLXML arg1) throws SQLException {
+		// Ignore
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public boolean isWrapperFor(final Class<?> iface) throws SQLException {
+		return false;
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public <T> T unwrap(final Class<T> iface) throws SQLException {
+		return null;
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public <T> T getObject(final int columnIndex, final Class<T> type) throws SQLException {
+		return null;
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public <T> T getObject(final String columnLabel, final Class<T> type) throws SQLException {
+		return null;
+	}
 
 }
