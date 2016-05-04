@@ -1,20 +1,15 @@
 //Copyright (c) 1998 Panos Kougiouris All Rights Reserved
 package edu.cmu.cs.bungee.javaExtensions.psk.cmdline;
 
-public class IntegerToken extends Token
-{
-	public IntegerToken(
-		    String a_name,
-            String a_message,
-            String a_environment_variable,
-            int aTokenOptions,
-			int a_def_value
-			) {
+class IntegerToken extends Token {
+	IntegerToken(final String a_name, final String a_message,
+			final String a_environment_variable, final int aTokenOptions,
+			final int a_def_value) {
 		super(a_name, a_message, a_environment_variable, aTokenOptions);
-		setDefaultValue(new Integer(a_def_value));
+		setDefaultValue(Integer.valueOf(a_def_value));
 	}
 
-    @Override
+	@Override
 	public String type() {
 		return "<Integer>";
 	}
@@ -23,13 +18,13 @@ public class IntegerToken extends Token
 		return getValue(0);
 	}
 
-	public int getValue(int i) {
-		Integer in = (Integer)m_values.elementAt(i);
+	private int getValue(final int i) {
+		final Integer in = (Integer) m_values.elementAt(i);
 		return in.intValue();
 	}
 
 	@Override
-	public Object toObject(String lexeme) {
-		return new Integer(lexeme);
+	public Object toObject(final String lexeme) {
+		return Integer.valueOf(lexeme);
 	}
 }

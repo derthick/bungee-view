@@ -10,8 +10,9 @@ package edu.cmu.cs.bungee.javaExtensions.psk.cmdline;
  */
 
 public class StringToken extends Token {
-	public StringToken(String a_name, String a_message,
-			String a_environment_variable, int aTokenOptions, String a_def_value) {
+	public StringToken(final String a_name, final String a_message,
+			final String a_environment_variable, final int aTokenOptions,
+			final String a_def_value) {
 		super(a_name, a_message, a_environment_variable, aTokenOptions);
 		setDefaultValue(a_def_value);
 	}
@@ -25,12 +26,12 @@ public class StringToken extends Token {
 		return getValue(0);
 	}
 
-	public String getValue(int i) {
+	private String getValue(final int i) {
 		return (String) m_values.elementAt(i);
 	}
 
 	@Override
-	public Object toObject(String lexeme) {
+	public Object toObject(final String lexeme) {
 		return lexeme;
 	}
 }
