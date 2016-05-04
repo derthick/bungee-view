@@ -1,60 +1,55 @@
 package edu.cmu.cs.bungee.javaExtensions.graph;
 
-import java.awt.Font;
-import java.awt.font.FontRenderContext;
 import java.awt.geom.Line2D;
+import java.awt.geom.Line2D.Double;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
-import java.awt.geom.Line2D.Double;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-public class Edge<NodeObjectType extends Comparable<NodeObjectType>> {
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
 
-	// private static final int NEITHER = 0;
-	// private static final int FORWARD = 1;
-	// private static final int BACKWARD = 2;
-	// private static final int BIDIRECTIONAL = FORWARD | BACKWARD;
+import edu.cmu.cs.bungee.javaExtensions.UtilArray;
+import edu.cmu.cs.bungee.javaExtensions.UtilString;
+import jdk.nashorn.internal.ir.annotations.Immutable;
 
-	// left is nodes[0]; right is nodes[1]
-	public static final int LEFT_LABEL = 0;
-	public static final int CENTER_LABEL = 1;
-	public static final int RIGHT_LABEL = 2;
+/**
+ * There can only be one Edge between 2 Nodes, but it can be directional in that
+ * there is a left Node and a right Node.
+ */
+public class Edge<NodeObjectType extends Comparable<? super NodeObjectType>>
+		implements Comparable<Edge<NodeObjectType>> {
 
-	private String labels[];
-	// private int orientation = BIDIRECTIONAL;
-	// private final Node<NodeObjectType> node1;
-	// private final Node<NodeObjectType> node2;
-	private final Endpoint endpoint1;
-	private final Endpoint endpoint2;
-	private final List<Node<NodeObjectType>> nodes;
+	public enum EndpointType {
+		ARROW, CIRCLE, NONE
+	}
 
-	// private int x1, y1, x2, y2;
+	public enum LabelLocation {
+		LEFT_LABEL, CENTER_LABEL, RIGHT_LABEL
+	}
 
-	Edge(String[] labels, Node<NodeObjectType> node1, Node<NodeObjectType> node2) {
+	private final @NonNull List<String> labels = UtilArray.getArrayList(null, null, null);
+	private final @NonNull List<String> labelsUnmodifiable;
+	private final @NonNull Endpoint<NodeObjectType> leftEndpoint;
+	private final @NonNull Endpoint<NodeObjectType> rightEndpoint;
+
+	// left is nodes.get(0); right is nodes.get(1)
+	private final @Immutable @NonNull List<Node<NodeObjectType>> nodes;
+
+	Edge(final @NonNull Node<NodeObjectType> leftNode, final @NonNull Node<NodeObjectType> rightNode) {
 		super();
-		this.labels = labels;
-		this.endpoint1 = new Endpoint(node1);
-		this.endpoint2 = new Endpoint(node2);
-		List<Node<NodeObjectType>> nodes1 = new ArrayList<Node<NodeObjectType>>(2);
-		nodes1.add(node1);
-		nodes1.add(node2);
-		nodes = Collections.unmodifiableList(nodes1);
+		labelsUnmodifiable = UtilArray.unmodifiableList(labels);
+		leftEndpoint = new Endpoint<>(leftNode);
+		rightEndpoint = new Endpoint<>(rightNode);
+		final List<Node<NodeObjectType>> _nodes = new ArrayList<>(2);
+		_nodes.add(leftNode);
+		_nodes.add(rightNode);
+		nodes = UtilArray.unmodifiableList(_nodes);
 	}
 
-	 @SuppressWarnings("unchecked")
-	Node<NodeObjectType> getNode1() {
-		return (Node<NodeObjectType>) endpoint1.node;
-	}
-
-	 @SuppressWarnings("unchecked")
-	Node<NodeObjectType> getNode2() {
-		return (Node<NodeObjectType>) endpoint2.node;
-	}
-
-	boolean hasNode(Node<NodeObjectType> node) {
-		return node == getNode1() || node == getNode2();
+	boolean hasNode(final @NonNull Node<NodeObjectType> node1) {
+		return node1 == getRightNode() || node1 == getLeftNode();
 	}
 
 	// private int getMask(Node<NodeObjectType> caused) {
@@ -66,90 +61,104 @@ public class Edge<NodeObjectType extends Comparable<NodeObjectType>> {
 	// return orientation == NEITHER;
 	// }
 
-	public void setBidirectional() {
-		endpoint1.type = ARROW;
-		endpoint2.type = ARROW;
+	// TODO Remove unused code found by UCDetector
+	// public void setBidirectional() {
+	// leftEndpoint.type = EndpointType.ARROW;
+	// rightEndpoint.type = EndpointType.ARROW;
+	// }
+
+	// TODO Remove unused code found by UCDetector
+	// void removeDirection(final Node<NodeObjectType> caused) {
+	// // if (edge.getNode2().getName().equals("p2772")
+	// // && edge.getNode1().getName().equals(
+	// // "lithograph"))
+	// // return false;
+	//
+	// // String name = getDistalNode(caused) + "--" + caused;
+	// // // System.out.println("Removing weak edge " + name);
+	// // printMe(name);
+	//
+	// assert hasNode(caused);
+	// assert canCause(caused);
+	// getEndpoint(caused).type = EndpointType.NONE;
+	// // orientation &= ~getMask(caused);
+	// }
+
+	public @NonNull Endpoint<?> getEndpoint(final @NonNull Node<NodeObjectType> node1) {
+		assert hasNode(node1);
+		return node1 == getRightNode() ? leftEndpoint : rightEndpoint;
 	}
 
-	public void removeDirection(Node<NodeObjectType> caused) {
-		// if (edge.getNode2().getName().equals("p2772")
-		// && edge.getNode1().getName().equals(
-		// "lithograph"))
-		// return false;
+	// TODO Remove unused code found by UCDetector
+	// void addDirection(final Node<NodeObjectType> caused) {
+	// assert hasNode(caused);
+	// // if (!canCause(caused))
+	// // System.out.println("addDirection "+this);
+	// getEndpoint(caused).type = EndpointType.ARROW;
+	// // orientation |= getMask(caused);
+	// }
 
-		// String name = getDistalNode(caused) + "--" + caused;
-		// // Util.print("Removing weak edge " + name);
-		// printMe(name);
-
+	public void setDirection(final @NonNull Node<NodeObjectType> caused) {
 		assert hasNode(caused);
-		assert canCause(caused);
-		getEndpoint(caused).type = NONE;
-		// orientation &= ~getMask(caused);
-	}
-
-	public Endpoint getEndpoint(Node<NodeObjectType> caused) {
-		assert hasNode(caused);
-		return caused == getNode1() ? endpoint1 : endpoint2;
-	}
-
-	public void addDirection(Node<NodeObjectType> caused) {
-		assert hasNode(caused);
-		// if (!canCause(caused))
-		// System.out.println("addDirection "+this);
-		getEndpoint(caused).type = ARROW;
-		// orientation |= getMask(caused);
-	}
-
-	public void setDirection(Node<NodeObjectType> caused) {
-		assert hasNode(caused);
-		getEndpoint(caused).type = ARROW;
-		getEndpoint(getDistalNode(caused)).type = NONE;
+		getEndpoint(caused).setType(EndpointType.ARROW);
+		getEndpoint(getDistalNode(caused)).setType(EndpointType.NONE);
 		// orientation = getMask(caused);
 		// System.out.println("setDirection "+this);
 	}
 
-	public List<Node<NodeObjectType>> getNodes() {
+	/**
+	 * @return {<leftNode>, <rightNode>}
+	 */
+	public @NonNull List<Node<NodeObjectType>> getNodes() {
 		return nodes;
 	}
 
-	public Node<NodeObjectType> getDistalNode(Node<NodeObjectType> proximalNode) {
-		assert proximalNode == getNode1() || proximalNode == getNode2();
-		return proximalNode == getNode1() ? getNode2() : getNode1();
+	public @NonNull Node<NodeObjectType> getLeftNode() {
+		return leftEndpoint.getNode();
 	}
 
-	public boolean canCause(Node<NodeObjectType> caused) {
-		return getEndpoint(caused).type == ARROW;
+	public @NonNull Node<NodeObjectType> getRightNode() {
+		return rightEndpoint.getNode();
+	}
+
+	@NonNull
+	Node<NodeObjectType> getDistalNode(final @NonNull Node<NodeObjectType> proximalNode) {
+		assert proximalNode == getRightNode() || proximalNode == getLeftNode();
+		return proximalNode == getRightNode() ? getLeftNode() : getRightNode();
+	}
+
+	boolean canCause(final @NonNull Node<NodeObjectType> caused) {
+		return getEndpoint(caused).getType() == EndpointType.ARROW;
 		// return (orientation & getMask(caused)) > 0;
 	}
 
-	public String getLabel(int position) {
-		return labels[position];
+	public @NonNull List<String> getLabels() {
+		return labelsUnmodifiable;
 	}
 
-	public void setLabel(String label, int position) {
+	public @Nullable String getLabel(final @NonNull LabelLocation labelLocation) {
+		return labels.get(labelLocation.ordinal());
+	}
+
+	public void setLabel(final @Nullable String label, final @NonNull Node<NodeObjectType> node) {
+		setLabel(label, getPosition(node));
+	}
+
+	public void setLabel(final @Nullable String label, final @NonNull LabelLocation labelLocation) {
 		// assert label.indexOf('@') == -1;
-		this.labels[position] = label;
+		labels.set(labelLocation.ordinal(), label);
 	}
 
-	public void setLabel(String label, Node<NodeObjectType> node) {
-		this.labels[getPosition(node)] = label;
+	/**
+	 * @return LabelLocation.LEFT_LABEL or LabelLocation.RIGHT_LABEL
+	 */
+	private @NonNull LabelLocation getPosition(final @NonNull Node<NodeObjectType> node) {
+		assert node == getLeftNode() || node == getRightNode();
+		return node == getLeftNode() ? LabelLocation.LEFT_LABEL : LabelLocation.RIGHT_LABEL;
 	}
 
-	private int getPosition(Node<NodeObjectType> node) {
-		if (node == getNode1())
-			return LEFT_LABEL;
-		else if (node == getNode2())
-			return RIGHT_LABEL;
-		assert false;
-		return -1;
-	}
-
-	public String[] getLabels() {
-		return labels;
-	}
-
-	public int getNumDirections() {
-		return (canCause(getNode1()) ? 1 : 0) + (canCause(getNode2()) ? 1 : 0);
+	public int getNumDirectedEdges() {
+		return (canCause(getRightNode()) ? 1 : 0) + (canCause(getLeftNode()) ? 1 : 0);
 		// switch (orientation) {
 		// case NEITHER:
 		// return 0;
@@ -185,37 +194,40 @@ public class Edge<NodeObjectType extends Comparable<NodeObjectType>> {
 	// return node == node1 ? y1 : y2;
 	// }
 
-	public Point2D getEndpoint(Node<NodeObjectType> node, Font font, FontRenderContext frc) {
-		assert hasNode(node);
-		Rectangle2D rect = node.getRectangle(font, frc);
-		return getEndpoint(rect);
-	}
+	// TODO Remove unused code found by UCDetector
+	// public Point2D getEndpoint(final Node<NodeObjectType> node,
+	// final Font font, final FontRenderContext frc) {
+	// assert hasNode(node);
+	// final Rectangle2D rect = node.getRectangle(font, frc);
+	// return getEndpoint(rect);
+	// }
 
-	public Point2D getEndpoint(Rectangle2D rect) {
-		Line2D centerToCenterLine = getCenterToCenterLine();
-		assert rect.contains(centerToCenterLine.getP1()) != rect
-				.contains(centerToCenterLine.getP2()) : rect + " "
+	/**
+	 * @param rect
+	 * @return the point where the line segment between the centers of our nodes
+	 *         intersects rect (which is the fullBounds of one of the nodes).
+	 */
+	public @NonNull Point2D getEndingPoint(final @NonNull Rectangle2D rect) {
+		final Line2D centerToCenterLine = getCenterToCenterLine();
+		assert rect.contains(centerToCenterLine.getP1()) != rect.contains(centerToCenterLine.getP2()) : rect + " "
 				+ centerToCenterLine.getP1() + " " + centerToCenterLine.getP2();
-		double x1 = rect.getX();
-		double y1 = rect.getY();
-		double x2 = x1 + rect.getWidth();
-		double y2 = y1 + rect.getHeight();
-		Point2D result = getIntersection(centerToCenterLine, new Line2D.Double(
-				x1, y1, x2, y1));
-		if (result == null)
-			result = getIntersection(centerToCenterLine, new Line2D.Double(x2,
-					y1, x2, y2));
-		if (result == null)
-			result = getIntersection(centerToCenterLine, new Line2D.Double(x1,
-					y2, x2, y2));
-		if (result == null)
-			result = getIntersection(centerToCenterLine, new Line2D.Double(x1,
-					y1, x1, y2));
-		assert result != null : rect + " (" + centerToCenterLine.getX1() + ", "
-				+ centerToCenterLine.getY1() + ") ("
-				+ centerToCenterLine.getX2() + ", "
-				+ centerToCenterLine.getY2() + ")";
-		// Util.print("dd " + rect + " " + result);
+		final double x1 = rect.getX();
+		final double y1 = rect.getY();
+		final double x2 = x1 + rect.getWidth();
+		final double y2 = y1 + rect.getHeight();
+		Point2D result = getIntersection(centerToCenterLine, new Line2D.Double(x1, y1, x2, y1));
+		if (result == null) {
+			result = getIntersection(centerToCenterLine, new Line2D.Double(x2, y1, x2, y2));
+		}
+		if (result == null) {
+			result = getIntersection(centerToCenterLine, new Line2D.Double(x1, y2, x2, y2));
+		}
+		if (result == null) {
+			result = getIntersection(centerToCenterLine, new Line2D.Double(x1, y1, x1, y2));
+		}
+		assert result != null : rect + " (" + centerToCenterLine.getX1() + ", " + centerToCenterLine.getY1() + ") ("
+				+ centerToCenterLine.getX2() + ", " + centerToCenterLine.getY2() + ")";
+		// System.out.println("dd " + rect + " " + result);
 		assert result.getX() >= x1 - 0.000001 : result.getX() + " " + x1;
 		assert result.getX() <= x2 + 0.000001 : result.getX() + " " + x2;
 		assert result.getY() >= y1 - 0.000001 : result.getY() + " " + y1;
@@ -223,68 +235,72 @@ public class Edge<NodeObjectType extends Comparable<NodeObjectType>> {
 		return result;
 	}
 
-	/**
-	 * @param edge2
-	 * @return whether the edges cross
-	 * 
-	 *         see <a
-	 *         href="http://local.wasp.uwa.edu.au/~pbourke/geometry/lineline2d/"
-	 *         >Intersection point of two lines< /a>
-	 */
-	Point2D getIntersection(Edge<NodeObjectType> edge2) {
-		// if (getNodes().contains(edge2.getNode1())
-		// || getNodes().contains(edge2.getNode2()))
-		// return null;
-		if (minX() >= edge2.maxX() || maxX() <= edge2.minX()
-				|| minY() >= edge2.maxY() || maxY() <= edge2.minY())
-			return null;
-		return getIntersection(getCenterToCenterLine(), edge2
-				.getCenterToCenterLine());
-	}
+	// TODO Remove unused code found by UCDetector
+	// /**
+	// * @param edge2
+	// * @return whether the edges cross
+	// *
+	// * see <a
+	// * href="http://local.wasp.uwa.edu.au/~pbourke/geometry/lineline2d/"
+	// * >Intersection point of two lines< /a>
+	// */
+	// Point2D getIntersection(final Edge<NodeObjectType> edge2) {
+	// // if (getNodes().contains(edge2.getNode1())
+	// // || getNodes().contains(edge2.getNode2()))
+	// // return null;
+	// if (minX() >= edge2.maxX() || maxX() <= edge2.minX()
+	// || minY() >= edge2.maxY() || maxY() <= edge2.minY()) {
+	// return null;
+	// }
+	// return getIntersection(getCenterToCenterLine(),
+	// edge2.getCenterToCenterLine());
+	// }
 
-	int maxX() {
-		return Math.max(getNode1().getCenterX(), getNode2().getCenterX());
-	}
+	// private int maxX() {
+	// return Math
+	// .max(getRightNode().getCenterX(), getLeftNode().getCenterX());
+	// }
 
-	int minX() {
-		return Math.min(getNode1().getCenterX(), getNode2().getCenterX());
-	}
+	// private int minX() {
+	// return Math
+	// .min(getRightNode().getCenterX(), getLeftNode().getCenterX());
+	// }
+	//
+	// private int maxY() {
+	// return Math
+	// .max(getRightNode().getCenterY(), getLeftNode().getCenterY());
+	// }
+	//
+	// private int minY() {
+	// return Math
+	// .min(getRightNode().getCenterY(), getLeftNode().getCenterY());
+	// }
 
-	int maxY() {
-		return Math.max(getNode1().getCenterY(), getNode2().getCenterY());
-	}
-
-	int minY() {
-		return Math.min(getNode1().getCenterY(), getNode2().getCenterY());
-	}
-
-	private Double getCenterToCenterLine() {
-		Node<NodeObjectType> node11 = getNode1();
-		Node<NodeObjectType> node12 = getNode2();
-		int x11 = node11.getCenterX();
-		int y11 = node11.getCenterY();
-		int x12 = node12.getCenterX();
-		int y12 = node12.getCenterY();
-		// Util.print("Gcc "+x11+" "+y11+" "+x12+" "+y12+" ");
+	private @NonNull Double getCenterToCenterLine() {
+		final Node<NodeObjectType> node11 = getLeftNode();
+		final Node<NodeObjectType> node12 = getRightNode();
+		final int x11 = node11.getCenterX();
+		final int y11 = node11.getCenterY();
+		final int x12 = node12.getCenterX();
+		final int y12 = node12.getCenterY();
+		// System.out.println("Gcc "+x11+" "+y11+" "+x12+" "+y12+" ");
 		return new Line2D.Double(x11, y11, x12, y12);
 	}
 
-	private Point2D getIntersection(Line2D edge1, Line2D edge2) {
+	private static @Nullable Point2D getIntersection(final @NonNull Line2D edge1, final @NonNull Line2D edge2) {
 		// Find intersection of the lines determined by each edge's line segment
-		double x11 = edge1.getX1();
-		double y11 = edge1.getY1();
-		double x12 = edge1.getX2();
-		double y12 = edge1.getY2();
-		double x21 = edge2.getX1();
-		double y21 = edge2.getY1();
-		double x22 = edge2.getX2();
-		double y22 = edge2.getY2();
+		final double x11 = edge1.getX1();
+		final double y11 = edge1.getY1();
+		final double x12 = edge1.getX2();
+		final double y12 = edge1.getY2();
+		final double x21 = edge2.getX1();
+		final double y21 = edge2.getY1();
+		final double x22 = edge2.getX2();
+		final double y22 = edge2.getY2();
 
-		double denom = (y22 - y21) * (x12 - x11) - (x22 - x21) * (y12 - y11);
-		double numeratorA = (x22 - x21) * (y11 - y21) - (y22 - y21)
-				* (x11 - x21);
-		double numeratorB = (x12 - x11) * (y11 - y21) - (y12 - y11)
-				* (x11 - x21);
+		final double denom = (y22 - y21) * (x12 - x11) - (x22 - x21) * (y12 - y11);
+		final double numeratorA = (x22 - x21) * (y11 - y21) - (y22 - y21) * (x11 - x21);
+		final double numeratorB = (x12 - x11) * (y11 - y21) - (y12 - y11) * (x11 - x21);
 		Point2D.Double result = null;
 		if (denom == 0) {
 			if (numeratorA == 0) {
@@ -307,12 +323,11 @@ public class Edge<NodeObjectType extends Comparable<NodeObjectType>> {
 				// lines are parallel. result remains null.
 			}
 		} else {
-			double ua = numeratorA / denom;
+			final double ua = numeratorA / denom;
 			if (ua > 0 && ua < 1) {
-				double ub = numeratorB / denom;
+				final double ub = numeratorB / denom;
 				if (ub > 0 && ub < 1) {
-					result = new Point2D.Double(x11 + ua * (x12 - x11), y11
-							+ ua * (y12 - y11));
+					result = new Point2D.Double(x11 + ua * (x12 - x11), y11 + ua * (y12 - y11));
 				}
 			}
 
@@ -325,66 +340,51 @@ public class Edge<NodeObjectType extends Comparable<NodeObjectType>> {
 		return result;
 	}
 
-	private boolean between(double x, double x1, double x2) {
+	private static boolean between(final double x, final double x1, final double x2) {
 		return x > Math.min(x1, x2) && x < Math.max(x1, x2);
 	}
 
-	public boolean isArrowhead(Node<NodeObjectType> node) {
+	private boolean isArrowhead(final @NonNull Node<NodeObjectType> node) {
 		return canCause(node) && !canCause(getDistalNode(node));
 	}
 
 	@Override
 	public String toString() {
-		StringBuffer buf = new StringBuffer();
-		String connector = " " + endpoint1.symbol("<") + "-"
-				+ endpoint2.symbol(">") + " ";
+		final String connector = " " + leftEndpoint.symbol("<") + "-" + rightEndpoint.symbol(">") + " ";
 
-		Node<NodeObjectType> caused = isArrowhead(getNode1()) ? getNode1() : getNode2();
+		final Node<NodeObjectType> caused = isArrowhead(getRightNode()) ? getRightNode() : getLeftNode();
 		// String connector = isArrowhead(caused) ? " --> " : " --- ";
-
-		buf.append(getDistalNode(caused).getLabel()).append(connector).append(
-				caused.getLabel());
-		return buf.toString();
+		return UtilString.toString(this, getDistalNode(caused).getLabel() + connector + caused.getLabel());
 	}
 
-	public Node<NodeObjectType> getCausedNode() {
-		if (isArrowhead(getNode1()))
-			return getNode1();
-		else if (isArrowhead(getNode2()))
-			return getNode2();
-		assert false;
-		return null;
+	public @NonNull Node<NodeObjectType> getCausedNode() {
+		assert isArrowhead(getRightNode()) || isArrowhead(getLeftNode());
+		return isArrowhead(getRightNode()) ? getRightNode() : getLeftNode();
 	}
 
-	public Node<NodeObjectType> getCausingNode() {
-		if (isArrowhead(getNode1()))
-			return getNode2();
-		else if (isArrowhead(getNode2()))
-			return getNode1();
-		assert false;
-		return null;
+	public @NonNull Node<NodeObjectType> getCausingNode() {
+		assert isArrowhead(getRightNode()) || isArrowhead(getLeftNode());
+		return isArrowhead(getRightNode()) ? getLeftNode() : getRightNode();
 	}
 
-	public final static int ARROW = 1;
-	public final static int CIRCLE = 2;
-	public final static int NONE = 3;
+	public static class Endpoint<NodeObjectType extends Comparable<? super NodeObjectType>> { // NO_UCD
+																								// (use
+																								// default)
+		private @NonNull EndpointType type = EndpointType.NONE;
+		private final @NonNull Node<NodeObjectType> node;
 
-	public static class Endpoint {
-		public int type;
-		final Node<?> node;
-
-		Endpoint(Node<?> node) {
-			this.type = NONE;
-			this.node = node;
+		Endpoint(final @NonNull Node<NodeObjectType> _node) {
+			node = _node;
 		}
 
-		Endpoint(int type, Node<?> node) {
-			assert type == ARROW || type == CIRCLE || type == NONE;
-			this.type = type;
-			this.node = node;
-		}
+		// Endpoint(final EndpointType _type, final Node<NodeObjectType> _node)
+		// {
+		// type = _type;
+		// node = _node;
+		// }
 
-		String symbol(String arrowSymbol) {
+		@NonNull
+		String symbol(final @NonNull String arrowSymbol) {
 			switch (type) {
 			case ARROW:
 				return arrowSymbol;
@@ -398,6 +398,55 @@ public class Edge<NodeObjectType extends Comparable<NodeObjectType>> {
 				return "?";
 			}
 		}
+
+		public @NonNull EndpointType getType() {
+			return type;
+		}
+
+		void setType(final @NonNull EndpointType _type) {
+			type = _type;
+		}
+
+		@NonNull
+		Node<NodeObjectType> getNode() {
+			return node;
+		}
+
+	}
+
+	@Override
+	public int compareTo(final Edge<NodeObjectType> edge0) {
+		int result = nodes.get(0).compareTo(edge0.nodes.get(0));
+		if (result == 0) {
+			result = nodes.get(1).compareTo(edge0.nodes.get(1));
+		}
+		return result;
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + nodes.hashCode();
+		return result;
+	}
+
+	@Override
+	public boolean equals(final Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (obj == null) {
+			return false;
+		}
+		if (getClass() != obj.getClass()) {
+			return false;
+		}
+		final Edge<?> other = (Edge<?>) obj;
+		if (!nodes.equals(other.nodes)) {
+			return false;
+		}
+		return true;
 	}
 
 }
