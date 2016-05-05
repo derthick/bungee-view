@@ -15,23 +15,27 @@ import javax.jnlp.UnavailableServiceException;
 import edu.cmu.cs.bungee.javaExtensions.JDBCSample;
 import edu.cmu.cs.bungee.javaExtensions.URLQuery;
 import edu.cmu.cs.bungee.javaExtensions.Util;
+import edu.cmu.cs.bungee.javaExtensions.UtilString;
 import edu.umd.cs.piccolo.PLayer;
 import edu.umd.cs.piccolox.PFrame;
 
-public final class Log extends PFrame {
+final class Log extends PFrame {
+
+	protected static final long serialVersionUID = 6232063290939677736L;
 
 	private JDBCSample jdbc;
 
-	BasicService basicJNLPservice = maybeGetBasicService();
+	private static final BasicService BASIC_JNLP_SERVICE = maybeGetBasicService();
 
-	Chart chart;
+	private Chart chart;
 
-	public static void main(String[] args) {
-		// Util.print("Starting Art");
+	@SuppressWarnings("unused")
+	public static void main(final String[] args) {
+		// System.out.println("Starting log.Log");
 		new Log(args);
 	}
 
-	private Log(String[] args) {
+	private Log(final String[] args) {
 		// gross hack to pass arguments to initialize
 		super(args.length > 0 ? args[0] : null, false, null);
 	}
@@ -40,30 +44,23 @@ public final class Log extends PFrame {
 	public void initialize() {
 		getCanvas().setPanEventHandler(null);
 		getCanvas().setZoomEventHandler(null);
-		String argString = getTitle();
-		// Util.print(argString);
-		URLQuery argURLQuery = new URLQuery(argString);
+		final String argString = getTitle();
+		// System.out.println("argString=" + argString);
+		assert argString != null;
+		final URLQuery argURLQuery = new URLQuery(argString);
 		setTitle("Bungee View Log");
-		String dbs = argURLQuery.getArgument("dbs");
-		assert dbs != null && dbs.length() > 0 : "Empty db name list";
-		String[] dbNames = Util.splitComma(dbs);
-		String host = argURLQuery.getArgument("host");
-		String user = argURLQuery.getArgument("user");
-		String pass = argURLQuery.getArgument("pass");
+		final String dbs = argURLQuery.getArgument("dbs");
+		assert UtilString.isNonEmptyString(dbs) : "Empty db name list";
+		final String[] dbNames = UtilString.splitComma(dbs);
+		final String host = argURLQuery.getArgument("host");
+		final String user = argURLQuery.getArgument("user");
+		final String pass = argURLQuery.getArgument("pass");
 		try {
-			jdbc = new JDBCSample(host, dbNames[0], user, pass);
+			jdbc = JDBCSample.getMySqlJDBCSample(host, Util.nonNull(dbNames[0]), user, pass);
 			read(dbNames);
-		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (InstantiationException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IllegalAccessException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (ClassNotFoundException e) {
-			// TODO Auto-generated catch block
+			Histograms.printHistograms(jdbc, dbNames);
+			jdbc.close();
+		} catch (final SQLException e) {
 			e.printStackTrace();
 		}
 	}
@@ -74,9 +71,9 @@ public final class Log extends PFrame {
 	}
 
 	private void setSize() {
-		double w = getWidth();
-		double h = getHeight();
-		PLayer layer = getCanvas().getLayer();
+		final double w = getWidth();
+		final double h = getHeight();
+		final PLayer layer = getCanvas().getLayer();
 		chart.setOffset(140, 140);
 		chart.setBounds(0, 0, w - 280, h - 280);
 		// chart.setBounds(0, 0, 200, 200);
@@ -84,24 +81,22 @@ public final class Log extends PFrame {
 		chart.draw();
 	}
 
-	void read(String[] dbNames) throws SQLException {
-		chart = new Chart(this);
-		for (int i = 0; i < dbNames.length; i++) {
-			String table = dbNames[i] + ".user_actions";
-			ResultSet rs = jdbc
-					.SQLquery("SELECT session, COUNT(*), MIN(timestamp), MAX(timestamp), client FROM "
-							+ table + " GROUP BY session");
-			while (rs.next()) {
-				int sessionID = rs.getInt(1);
-				int nOps = rs.getInt(2);
-				Date minDate = rs.getTimestamp(3);
-				Date maxDate = rs.getTimestamp(4);
-				String IP = rs.getString(5);
-				Session session = new Session(sessionID, dbNames[i], nOps,
-						minDate, maxDate, IP);
-				chart.addSession(session);
+	private void read(final String[] dbNames) throws SQLException {
+		chart = new Chart();
+		for (final String dbName : dbNames) {
+			final String table = dbName + ".user_actions";
+			try (ResultSet rs = jdbc.sqlQuery("SELECT session, COUNT(*), MIN(timestamp), MAX(timestamp), client FROM "
+					+ table + " GROUP BY session");) {
+				while (rs.next()) {
+					final int sessionID = rs.getInt(1);
+					final int nOps = rs.getInt(2);
+					final Date minDate = rs.getTimestamp(3);
+					final Date maxDate = rs.getTimestamp(4);
+					final String IP = rs.getString(5);
+					final Session session = new Session(sessionID, dbName, nOps, minDate, maxDate, IP);
+					chart.addSession(session);
+				}
 			}
-			rs.close();
 		}
 		setSize();
 	}
@@ -110,26 +105,24 @@ public final class Log extends PFrame {
 		BasicService s = null;
 		try {
 			s = (BasicService) ServiceManager.lookup("javax.jnlp.BasicService");
-		} catch (UnavailableServiceException e) {
-			Util.err("jnlp.BasicService is not available");
+		} catch (final UnavailableServiceException e) {
+			System.err.println("jnlp.BasicService is not available");
 		}
 		return s;
 	}
 
-	void showDocument(String URLstring) {
-		Util.print("showDocument " + URLstring);
-		if (basicJNLPservice != null) {
+	static void showDocument(final String URLstring) {
+		System.out.println("showDocument " + URLstring);
+		if (BASIC_JNLP_SERVICE != null) {
 			try {
-				basicJNLPservice.showDocument(new URL(URLstring));
-			} catch (MalformedURLException e) {
+				BASIC_JNLP_SERVICE.showDocument(new URL(URLstring));
+			} catch (final MalformedURLException e) {
 				e.printStackTrace();
 			}
 		} else {
 			try {
-				Runtime.getRuntime().exec(
-						"C:\\Program Files\\Mozilla Firefox\\firefox.exe \""
-								+ URLstring + "\"");
-			} catch (IOException e) {
+				Runtime.getRuntime().exec("C:\\Program Files\\Mozilla Firefox\\firefox.exe \"" + URLstring + "\"");
+			} catch (final IOException e) {
 				e.printStackTrace();
 			}
 		}

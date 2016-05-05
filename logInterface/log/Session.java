@@ -4,26 +4,28 @@ import java.awt.Color;
 import java.text.DateFormat;
 import java.util.Date;
 
+import edu.cmu.cs.bungee.javaExtensions.UtilString;
 import edu.cmu.cs.bungee.piccoloUtils.gui.APText;
 import edu.cmu.cs.bungee.piccoloUtils.gui.LazyPNode;
 import edu.cmu.cs.bungee.piccoloUtils.gui.LazyPPath;
 import edu.cmu.cs.bungee.piccoloUtils.gui.MyInputEventHandler;
-import edu.umd.cs.piccolo.PNode;
 
 class Session extends LazyPPath {
 
-	int ID;
-	int nOps;
-	Date start;
-	Date end;
-	String db;
-	String IPaddress;
-	static final int maxEdge = 30;
-	static final Color normalColor = Color.cyan;
-	static final Color highlightColor = Color.black;
+	// protected static final long serialVersionUID = -2589191367326808627L;
 
-	Session(int sessionID, String dbName, int opCount, Date minDate,
-			Date maxDate, String IP) {
+	final int ID;
+	final int nOps;
+	final Date start;
+	final Date end;
+	final String db;
+	final String IPaddress;
+	private static final int MAX_EDGE = 30;
+	private static final Color NORMAL_COLOR = Color.cyan;
+	private static final Color HIGHLIGHT_COLOR = Color.black;
+
+	Session(final int sessionID, final String dbName, final int opCount, final Date minDate, final Date maxDate,
+			final String IP) {
 		ID = sessionID;
 		nOps = opCount;
 		start = minDate;
@@ -32,19 +34,19 @@ class Session extends LazyPPath {
 		IPaddress = IP;
 
 		setStroke(LazyPPath.getStrokeInstance(1));
-		setStrokePaint(normalColor);
+		setStrokePaint(NORMAL_COLOR);
 	}
 
-	void setSize(int maxSize) {
-		double edgeRatio = Math.sqrt(maxSize) / maxEdge;
-		float edge = (float) (Math.sqrt(nOps) / edgeRatio);
+	void setSize(final int maxSize) {
+		final double edgeRatio = Math.sqrt(maxSize) / MAX_EDGE;
+		final float edge = (float) (Math.sqrt(nOps) / edgeRatio);
 		setBounds(-edge / 2, -edge / 2, edge, edge);
 
-		float[] Xs = { -edge / 2, edge / 2, edge / 2, -edge / 2, -edge / 2 };
-		float[] Ys = { -edge / 2, -edge / 2, edge / 2, edge / 2, -edge / 2 };
+		final float[] Xs = { -edge / 2, edge / 2, edge / 2, -edge / 2, -edge / 2 };
+		final float[] Ys = { -edge / 2, -edge / 2, edge / 2, edge / 2, -edge / 2 };
 		setPathToPolyline(Xs, Ys);
 
-		LazyPNode child = new LazyPNode();
+		final LazyPNode child = new LazyPNode();
 		child.setPaint(Color.white);
 		child.setTransparency(0.001f);
 		child.setBounds(getBounds());
@@ -53,21 +55,20 @@ class Session extends LazyPPath {
 	}
 
 	String elapsedTime() {
-		long elapsedS = (end.getTime() - start.getTime()) / 1000;
-		long elapsedM = elapsedS / 60;
-		long elapsedS1 = elapsedS % 60;
+		final long elapsedS = (end.getTime() - start.getTime()) / 1000;
+		final long elapsedM = elapsedS / 60;
+		final long elapsedS1 = elapsedS % 60;
 		return elapsedM + ":" + elapsedS1;
 	}
 
 	@Override
 	public String toString() {
-		return "<Session " + start + " elapsed time=" + elapsedTime()
-				+ " nOps=" + nOps + " " + db + ">";
+		return UtilString.toString(this, start + " elapsed time=" + elapsedTime() + " nOps=" + nOps + " " + db);
 	}
 
-	private class SessionEventHandler extends MyInputEventHandler {
+	private class SessionEventHandler extends MyInputEventHandler<Session> {
 
-		private APText popup = new APText();
+		private final APText popup = new APText();
 
 		SessionEventHandler() {
 			super(Session.class);
@@ -75,33 +76,31 @@ class Session extends LazyPPath {
 		}
 
 		@Override
-		protected boolean enter(PNode node) {
-			popup.setText(DateFormat.getDateTimeInstance().format(start)
-					+ "\nelapsed time: " + elapsedTime() + "\nnOps: " + nOps
-					+ "\nIP address: " + IPaddress);
+		public boolean enter(@SuppressWarnings("unused") final Session node) {
+			popup.maybeSetText(DateFormat.getDateTimeInstance().format(start) + "\nelapsed time: " + elapsedTime()
+					+ "\nnOps: " + nOps + "\nIP address: " + IPaddress);
 			addChild(popup);
 			((Chart) getParent()).highlight(IPaddress);
 			return true;
 		}
 
 		@Override
-		protected boolean exit(PNode node) {
+		public boolean exit(@SuppressWarnings("unused") final Session node) {
 			removeChild(popup);
 			((Chart) getParent()).highlight(null);
 			return true;
 		}
 
 		@Override
-		protected boolean click(PNode node) {
-			String URLstring = "http://localhost/bungee/bungee.jsp?db=" + db
-					+ "&session=" + ID;
-			((Chart) getParent()).showDocument(URLstring);
+		public boolean click(@SuppressWarnings("unused") final Session node) {
+			final String URLstring = "http://localhost/bungee/bungee.jsp?db=" + db + "&session=" + ID;
+			Chart.showDocument(URLstring);
 			return true;
 		}
 	}
 
-	 void highlight(String address) {
-		Color color = IPaddress.equals(address) ? highlightColor : normalColor;
+	void highlight(final String address) {
+		final Color color = IPaddress.equals(address) ? HIGHLIGHT_COLOR : NORMAL_COLOR;
 		setStrokePaint(color);
 	}
 
