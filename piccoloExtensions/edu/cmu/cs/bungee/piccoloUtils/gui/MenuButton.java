@@ -1,8 +1,8 @@
-/* 
+/*
 
 Created on Mar 4, 2005
 
-The Bungee View applet lets you search, browse, and data-mine an image collection.  
+The Bungee View applet lets you search, browse, and data-mine an image collection.
 Copyright (C) 2006  Mark Derthick
 
 This program is free software; you can redistribute it and/or
@@ -19,8 +19,8 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-You may also contact the author at 
-mad@cs.cmu.edu, 
+You may also contact the author at
+mad@cs.cmu.edu,
 or at
 Mark Derthick
 Carnegie-Mellon University
@@ -35,90 +35,60 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.Paint;
 
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
+
+import edu.cmu.cs.bungee.javaExtensions.UtilColor;
+import edu.cmu.cs.bungee.javaExtensions.UtilString;
+
 public class MenuButton extends TextButton {
 
-	// private final String desc; // = "Select this menu choice";
+	static final @NonNull MenuButton INVALID_MENU_BUTTON = new MenuButton(new AbstractMenuItem("INVALID_MENU_BUTTON"),
+			null, UtilColor.WHITE, new Font("Default", 0, 1));
 
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
-	final MenuItem item;
+	final @NonNull
+	private MenuItem menuItem;
 
-	// static final MenuButtonClickHandler menuButtonClickHandler = new
-	// MenuButtonClickHandler();
+	public MenuButton(final @NonNull MenuItem _item, final @Nullable Paint bg, final @NonNull Color fg,
+			final @NonNull Font _font) {
+		super(_item.getLabel(), _font, 0, 0, -1, -1, null, null, /* is3D */ false, fg, bg);
 
-	public MenuButton(MenuItem item, Paint bg, Color FG, Font _font) {
-		super(item.getLabel(), _font, 0, 0, -1, -1, null, null, 0, FG, bg);
-
-		this.item = item;
-		if (FG != null)
-			setTextPaint(FG);
-		if (bg != null)
-			setPaint(bg);
-		// setWrapOnWordBoundaries(false);
-		setText(item.getLabel());
-		// setConstrainHeightToTextHeight(false);
+		menuItem = _item;
+		setPaint(bg);
+		setText(_item.getLabel());
 		setHeight(Math.ceil(getHeight()));
-		// addInputEventListener(menuButtonClickHandler);
 	}
 
-	void draw(double y, boolean visible) {
+	@Override
+	public boolean isEnabled() {
+		return menuItem.isEnabled();
+	}
+
+	void draw(final double y, final boolean visible) {
 		setVisible(visible);
-		setPickable(visible);
 		if (visible) {
 			getParent().moveToFront();
+			setOffset(getXOffset(), y);
 		}
-		setOffset(getXOffset(), y);
 	}
 
+	@Override
 	public void doPick() {
-		((Menu) getParent()).choose(item);
+		((Menu) getParent()).choose(menuItem);
 	}
 
-	public void setW(double w) {
-		// setConstrainWidthToTextWidth(false);
-		setWidth(w);
+	@Override
+	protected String getMouseDoc() {
+		return menuItem.getMouseDoc();
 	}
 
-	public// void pickDoc() {
-	// ((Menu) getParent()).setDoc(desc);
-	// }
-	void setMouseDoc(boolean state) {
-		if (getParent() instanceof MouseDoc)
-			((MouseDoc) getParent()).setMouseDoc(state ? item.getMouseDoc()
-					: null);
+	@Override
+	public String toString() {
+		return UtilString.toString(this, getText());
 	}
+
+	public MenuItem getMenuItem() {
+		return menuItem;
+	}
+
 }
-
-// class MenuButtonClickHandler extends MyInputEventHandler {
-//
-// MenuButtonClickHandler() {
-// super(MenuButton.class);
-// }
-//
-// // public boolean enter(PNode node) {
-// // ((MenuButton) node).highlight(true);
-// // return true;
-// // }
-//
-// // public boolean exit(PNode node) {
-// // ((MenuButton) node).highlight(false);
-// // return true;
-// // }
-//
-// protected boolean click(PNode node) {
-// ((MenuButton) node).pick();
-// return true;
-// }
-//
-// protected boolean exit(PNode node) {
-// ((MenuButton) node).setMouseDoc(false);
-// return true;
-// }
-//
-// protected boolean enter(PNode node) {
-// ((MenuButton) node).setMouseDoc(true);
-// return true;
-// }
-// }

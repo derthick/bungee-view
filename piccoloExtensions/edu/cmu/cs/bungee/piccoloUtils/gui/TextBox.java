@@ -1,8 +1,8 @@
-/* 
+/*
 
  Created on Mar 4, 2005
 
- The Bungee View applet lets you search, browse, and data-mine an image collection.  
+ The Bungee View applet lets you search, browse, and data-mine an image collection.
  Copyright (C) 2006  Mark Derthick
 
  This program is free software; you can redistribute it and/or
@@ -19,8 +19,8 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
- You may also contact the author at 
- mad@cs.cmu.edu, 
+ You may also contact the author at
+ mad@cs.cmu.edu,
  or at
  Mark Derthick
  Carnegie-Mellon University
@@ -38,7 +38,7 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.awt.font.TextAttribute;
+import java.util.regex.Pattern;
 
 import javax.swing.AbstractAction;
 import javax.swing.InputMap;
@@ -48,370 +48,323 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
+
+import edu.cmu.cs.bungee.javaExtensions.UtilString;
+import edu.cmu.cs.bungee.javaExtensions.YesNoMaybe;
 import edu.umd.cs.piccolo.PCanvas;
-import edu.umd.cs.piccolo.PNode;
 import edu.umd.cs.piccolox.event.PStyledTextEventHandler;
 import edu.umd.cs.piccolox.nodes.PStyledText;
 
-public class TextBox extends PNode implements MouseDoc {
-
-	private static final long serialVersionUID = 1L;
-
-	private static final int scrollW = 12;
-
-	boolean isEditable = false;
-
-	// double w, h;
-
-	// String s;
-
-	int nLines;
-
-	int nVisibleLines;
-
-	VScrollbar sb;
-
-	Color BG;
-
-	Color FG;
-
-	Color color;
-
-	private APText text;
-
-	private int prevLineOffset = -1;
-
-	private PStyledText editBuffer;
-
-	JTextComponent editor;
-
-	private PStyledTextEventHandler textHandler;
-
-	protected Runnable editAction;
+public class TextBox extends LazyPNode implements MouseDoc {
 
 	/**
-	 * Initially, we rely on Piccolo to flow text into lines. But to scroll we
-	 * have to figure out the lines ourselves. 
+	 * margin to the left and right of text, and to the right of the scroll bar.
 	 */
-	private String[] lines;
+	private final double margin;
+	/**
+	 * The number of lines required to fully display this APText.
+	 */
+	int totalLines;
+	final @NonNull VScrollbar scrollbar;
+	final @NonNull ScrollingAPText scrollingAPText;
 
-	private double lineH;
+	private boolean isEditable = false;
+	/**
+	 * @NonNull iff isEditable
+	 */
+	private PStyledText editBuffer;
+	/**
+	 * @NonNull iff isEditable
+	 */
+	private JTextComponent editor;
+	/**
+	 * @NonNull iff isEditable
+	 */
+	private PStyledTextEventHandler textHandler;
+	/**
+	 * @NonNull iff isEditable
+	 */
+	private Runnable editAction;
 
-	private double hMax;
-
-	private double w;
-
-	public TextBox(double w, double hMax, String _s, Color Scroll_BG,
-			Color Scroll_FG, Color _color, double lineH, Font font) {
-		// hMax = lineH * 4; // JUST FOR TESTING!!!!
-		FG = Scroll_FG;
-		BG = Scroll_BG;
-		color = _color;
-		this.w = w;
-		this.hMax = hMax;
-		this.lineH = lineH;
-		text = new APText(font);
-		text.setTextPaint(color);
-		text.setConstrainWidthToTextWidth(false);
-		text.setWidth(w - 2);
-		text.setPickable(false);
-		setText(_s);
+	public TextBox(final double w, final double h, final @Nullable String s, final @NonNull Color scroll_BG,
+			final @NonNull Color scroll_FG, final @NonNull Color textColor, final @Nullable Color bgColor,
+			final @NonNull Font font, final double _scrollW, final double _margin) {
+		margin = _margin;
 		setPickable(false);
-		// text.setOffset(5, 5);
-		addChild(text);
-		// System.out.println(s);
-		// System.out.println("TextBox " + nLines + " " + sH + " " + hMax);
+		scrollbar = initScrollbar(scroll_FG, scroll_BG, _scrollW);
+
+		scrollingAPText = new ScrollingAPText(font);
+		scrollingAPText.setTextPaint(textColor);
+		scrollingAPText.setPaint(bgColor);
+		scrollingAPText.setPickable(false);
+		scrollingAPText.setWrap(true);
+
+		setWidthHeight(w, h);
+		// setScrollbarW(_scrollW);
+		setText(s, YesNoMaybe.MAYBE);
+		addChild(scrollingAPText);
+	}
+
+	private @NonNull VScrollbar initScrollbar(final @NonNull Color scrollFG, final @NonNull Color scrollBG,
+			final double _scrollW) {
+
+		final @NonNull Runnable scroll = new Runnable() {
+			@Override
+			public void run() {
+				final int lineOffset = scrollbar.getRowOffset(totalLines - maxPossibleVisibleLines());
+				scrollingAPText.setOffsetLines(lineOffset);
+			}
+		};
+
+		final VScrollbar _sb = new VScrollbar(_scrollW, scrollBG, scrollFG, scroll);
+		_sb.setVisible(false);
+		addChild(_sb);
+		return _sb;
+	}
+
+	private void setScrollbarXOffset() {
+		scrollbar.setXoffset(getWidth() - scrollbar.getWidth() - margin);
+	}
+
+	public void validate(final double w, final double h) {
+		assert h >= minHeight() : h + " " + minHeight();
+		if (setWidthHeight(w, h)) {
+			redisplay();
+		}
+	}
+
+	@Override
+	public boolean setBounds(final double x, final double y, final double w, final double h) {
+		final boolean result = super.setBounds(x, y, w, h);
+		if (result) {
+			// System.out.println("TextBox.setBounds totalLines=" + totalLines +
+			// " width: " + w + " => " + getWidth()
+			// + " scrollingAPText.getNlines()=" + scrollingAPText.getNlines() +
+			// " scrollingAPText.getWidth()="
+			// + scrollingAPText.getWidth() + " => " + getTextWidth() + "
+			// isScrollbar()=" + isScrollbar());
+			scrollingAPText.setWidthHeight(getTextWidth(), h);
+		}
+		return result;
+	}
+
+	private double getTextWidth() {
+		return getWidth() - 2.0 * margin - (isScrollbar() ? scrollbar.getWidth() + margin : 0.0);
+	}
+
+	/**
+	 * Only called by SelectedItem.setFont().
+	 */
+	public void setFontNScrollbarW(final @NonNull Font font, final double _scrollbarW) {
+		boolean mustRedisplay = font != scrollingAPText.getFont();
+		if (scrollbar.setWidth(_scrollbarW)) {
+			setScrollbarXOffset();
+			mustRedisplay = true;
+		}
+		if (mustRedisplay) {
+			scrollingAPText.setFont(font);
+			redisplay();
+		}
+	}
+
+	private double lineH() {
+		return scrollingAPText.getLineH();
+	}
+
+	// Make height large enough for scrollbar. Even if scrollbar is hidden, this
+	// seems like a good heuristic minimum.
+	@Override
+	public double minHeight() {
+		final double lineH = lineH();
+		final double minLines = Math.ceil(scrollbar.minH() / lineH);
+		return minLines * lineH;
+	}
+
+	@Override
+	public double maxHeight() {
+		// System.out.println("TextBox.maxHeight totalLines=" + totalLines + "
+		// scrollingAPText.getNlines()="
+		// + scrollingAPText.getNlines() + " scrollingAPText.getWidth()=" +
+		// scrollingAPText.getWidth()
+		// + " isScrollbar()=" + isScrollbar());
+		assert totalLines == scrollingAPText.getNlines();
+		return totalLines * lineH();
 	}
 
 	/**
 	 * @return the displayed String
 	 */
-	public String getText() {
-		return text.getText();
+	public @Nullable String getText() {
+		return scrollingAPText.getText();
+	}
+
+	public void setText(final @Nullable String description, final @Nullable Pattern textSearchPattern) {
+		final boolean isTextChanged = setText(description, YesNoMaybe.NO);
+		scrollingAPText.updateSearchHighlighting(textSearchPattern, isTextChanged ? YesNoMaybe.NO : YesNoMaybe.MAYBE);
+		if (isTextChanged) {
+			redisplay();
+		}
 	}
 
 	/**
 	 * @param s
 	 *            display this String
 	 */
-	public void setText(String s) {
-		text.setText(s);
-
-		// s = gui.Util.wrapText(_s, (float) (w - 2), font);
-		nLines = text.getNlines();
-		double h = lineH * nLines;
-		if (h > hMax) {
-			// s = gui.Util.wrapText(_s, (float) (w - 3 - scrollW), font);
-			// nLines = Util.nLines(s);
-			text.setWidth(w - 3 - scrollW);
-			nLines = text.getNlines();
-			nVisibleLines = (int) (hMax / lineH);
-			h = nVisibleLines * lineH;
-			Runnable scroll = new Runnable() {
-
-				public void run() {
-					// System.out.println("TextBox.scroll");
-					draw();
-				}
-			};
-			sb = new VScrollbar(// (int) (w - scrollW / 2 - 1), 0,
-					scrollW, (int) h, BG, FG, scroll);
-			sb.setOffset(w - scrollW, 0);
-			addChild(sb);
-			sb.setBufferPercent(nVisibleLines, nLines);
-			text.setConstrainHeightToTextHeight(false);
-			text.setHeight(h);
-			// System.out.println("Adding scrollbar " + nVisibleLines + " " +
-			// nLines);
-			// System.out.println(sb.getBounds());
-			// System.out.println(sb.getOffset());
-		} else {
-			nVisibleLines = nLines;
-		}
-		setBounds(0.0, 0.0, w, h);
-	}
-
-	public boolean isScrollBar() {
-		return nVisibleLines < nLines;
-	}
-
-	void draw() {
-		assert sb != null;
-		int lineOffset = (int) ((nLines - nVisibleLines) * sb.getPos() + 0.5);
-		// System.out.println(lineOffset);
-		if (lineOffset != prevLineOffset) {
-			if (lines == null)
-				lines = text.lines();
-			String visString = subLines(lines, lineOffset, nVisibleLines);
-			int offset=0;
-			for (int line = 0; line < lineOffset; line++) {
-				offset+=lines[line].length();
+	boolean setText(final @Nullable String s, final @NonNull YesNoMaybe isRerender) {
+		final boolean result = scrollingAPText.getAvailableWidth() > 0f && scrollingAPText.maybeSetHTML(s, isRerender);
+		if (result) {
+			scrollbar.reset();
+			scrollingAPText.setOffsetLines(0);
+			if (isRerender != YesNoMaybe.NO) {
+				redisplay();
 			}
-			// Util.print("draw " + lineOffset + prefix);
-			text.setText(visString, offset);
-			prevLineOffset = lineOffset;
 		}
-		// System.out.println("Text " + text.getHeight());
+		return result;
 	}
 
-	private String subLines(String[] lines2, int lineOffset, int visibleLines) {
-		StringBuffer buf = new StringBuffer();
-		for (int line = 0; line < visibleLines; line++) {
-			buf.append(lines2[lineOffset+line]);
+	/**
+	 * scrollingAPText.setWidth(), scrollbar.setBufferPercent(), and
+	 * setHeight().
+	 *
+	 * Sometimes called from validate(), in which case we mustn't increase
+	 * height.
+	 */
+	private void redisplay() {
+		totalLines = scrollingAPText.getNlines();
+		if (totalLines > 0) {
+			scrollingAPText.setWidth(getTextWidth());
+
+			final double lineH = lineH();
+			final double newHeight = Math.max(Math.min(totalLines * lineH, getHeight()), minHeight());
+			final int maxPossibleVisibleLines = (int) (newHeight / lineH);
+			scrollbar.setBufferPercent(Math.min(totalLines, maxPossibleVisibleLines), totalLines, lineH);
+			if (isScrollbar()) {
+				setScrollbarXOffset();
+				assert scrollbar.getHeight() <= newHeight : redisplayErrMsg();
+				// setHeight(scrollbar.getHeight());
+			} else {
+				assert totalLines * lineH <= newHeight : redisplayErrMsg();
+				// setHeight(Math.max(minHeight, totalLines * lineH));
+			}
+			setHeight(newHeight);
+			totalLines = scrollingAPText.getNlines();
 		}
-		return buf.toString();
+	}
+
+	private String redisplayErrMsg() {
+		return "getHeight=" + getHeight() + " minHeight=" + minHeight() + " lineH=" + lineH() + " totalLines="
+				+ totalLines + " maxPossibleVisibleLines=" + maxPossibleVisibleLines() + " isScrollbar="
+				+ isScrollbar();
+	}
+
+	/**
+	 * @return sb.getVisible()
+	 */
+	public boolean isScrollbar() {
+		return scrollbar.getVisible();
+	}
+
+	/**
+	 * @return (int) (getHeight() / lineH())
+	 */
+	int maxPossibleVisibleLines() {
+		return (int) (getHeight() / lineH());
 	}
 
 	public boolean isEditing() {
 		return isEditable;
 	}
 
-	public void setEditable(boolean state, PCanvas canvas, Runnable _action) {
+	public void setEditable(final boolean state, final PCanvas canvas, final @NonNull Runnable _action) {
 		if (state != isEditable) {
 			editAction = _action;
 			isEditable = state;
-			text.setPickable(state);
-			// setPickable(state);
+			scrollingAPText.setPickable(state);
 			if (state) {
 				editor = createEditor();
-				editor.setFont(text.getFont());
-				// editor.setText(" ");
+				editor.setFont(scrollingAPText.getFont());
 				textHandler = new PStyledTextEventHandler(canvas, editor);
-				Document doc = editor.getUI().getEditorKit(editor)
-						.createDefaultDocument();
+				final Document doc = editor.getUI().getEditorKit(editor).createDefaultDocument();
 				try {
 					doc.insertString(0, getText(), null);
-				} catch (BadLocationException e) {
+				} catch (final BadLocationException e) {
 					e.printStackTrace();
 				}
 
 				editBuffer = new PStyledText();
-				// editBuffer.setPaint(text.getPaint());
 				editBuffer.setVisible(false);
-				// editBuffer.setConstrainHeightToTextHeight(false);
 				editBuffer.setConstrainWidthToTextWidth(false);
-				// searchBox = textHandler.createText();
 				editBuffer.setDocument(doc);
-				editBuffer.setBounds(text.getBounds());
-				// editor.setBounds(text.getBounds().getBounds());
-				// editor.setDocument(doc);
-				editBuffer.setOffset(text.getOffset());
+				editBuffer.setBounds(scrollingAPText.getBounds());
+				editBuffer.setOffset(scrollingAPText.getOffset());
 				addChild(editBuffer);
 				editBuffer.addInputEventListener(textHandler);
 
-				InputMap inputMap = editor.getInputMap();
-				KeyStroke key = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
+				final InputMap inputMap = editor.getInputMap();
+				final KeyStroke key = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
 				inputMap.put(key, new EnterAction(this));
-
 			}
 		}
 	}
 
-	public boolean highlight(String substring) {
-		// Util.print("TextBox.highlight " + substring + " " + getText());
-		if (substring == null || substring.length() == 0)
-			return text.clearAttributes();
-		boolean result = false;
-		int index = -1;
-		while ((index = getText().toLowerCase().indexOf(
-				substring.toLowerCase(), index + 1)) >= 0) {
-			result = true;
-			text.addAttribute(TextAttribute.BACKGROUND, color.brighter(),
-					index, index + substring.length());
-		}
-		return result;
-	}
+	private static class EnterAction extends AbstractAction {
 
-	static class EnterAction extends AbstractAction {
+		private final @NonNull TextBox textBox;
 
-		private static final long serialVersionUID = 1L;
-		TextBox qv;
-
-		EnterAction(TextBox _q) {
-			qv = _q;
+		EnterAction(final @NonNull TextBox _textBox) {
+			textBox = _textBox;
 		}
 
-		public void actionPerformed(ActionEvent e) {
-			qv.doSearch();
+		@Override
+		public void actionPerformed(@SuppressWarnings("unused") final ActionEvent e) {
+			textBox.doEdit();
 		}
 	}
 
 	public void revert() {
-		if (textHandler != null)
+		if (textHandler != null) {
 			textHandler.stopEditing();
+		}
 	}
 
-	public void doSearch() {
-		String s = editor.getText().trim();
-		text.setText(s);
+	void doEdit() {
+		final String s = editor.getText().trim();
+		scrollingAPText.maybeSetText(s);
 		textHandler.stopEditing();
 		editAction.run();
+		assert editBuffer != null;
 		editBuffer.setVisible(false);
 	}
 
 	// copied from PStyledTextEventHandler
-	private JTextComponent createEditor() {
-		JTextPane tComp = new JTextPane() {
-
-			/**
-			 * 
-			 */
-			private static final long serialVersionUID = 1L;
+	private static @NonNull JTextComponent createEditor() {
+		return new JTextPane() {
 
 			/**
 			 * Set some rendering hints - if we don't then the rendering can be
 			 * inconsistent. Also, Swing doesn't work correctly with fractional
 			 * metrics.
 			 */
-			public void paint(Graphics g) {
-				Graphics2D g2 = (Graphics2D) g;
+			@Override
+			public void paint(final Graphics g) {
+				assert g instanceof Graphics2D;
+				final Graphics2D g2 = (Graphics2D) g;
 
-				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-						RenderingHints.VALUE_ANTIALIAS_ON);
-				g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-						RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-				g2.setRenderingHint(RenderingHints.KEY_RENDERING,
-						RenderingHints.VALUE_RENDER_QUALITY);
-				g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,
-						RenderingHints.VALUE_FRACTIONALMETRICS_OFF);
+				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+				g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+				g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+				g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_OFF);
 
 				super.paint(g);
 			}
-
-			/**
-			 * If the standard scroll rect to visible is on, then you can get
-			 * weird behaviors if the canvas is put in a scrollpane.
-			 */
-			// public void scrollRectToVisible() {
-			// }
 		};
-		// tComp.setBackground(FG);
-		// tComp.setBorder(new CompoundBorder(new LineBorder(Color.black),
-		// new EmptyBorder(3, 3, 3, 3)));
-		return tComp;
 	}
 
-	// private PStyledText searchBox;
-	//
-	// private JTextComponent editor;
-	//
-	// private PStyledTextEventHandler textHandler;
-	//
-	// public void startEditing(PCanvas canvas) {
-	// editor = createEditor();
-	// editor.setSize((int) text.getWidth(), (int) text.getHeight());
-	// editor.setFont(text.getFont());
-	// editor.setText(text.getText());
-	// editor.setBackground(Color.red);
-	// // editor.setBounds()
-	// textHandler = new PStyledTextEventHandler(canvas, editor);
-	// addInputEventListener(textHandler);
-	//
-	// searchBox = new PStyledText();
-	// // searchBox.setPaint(Art.summaryFG);
-	// searchBox.setVisible(false);
-	// searchBox.setConstrainHeightToTextHeight(false);
-	// searchBox.setConstrainWidthToTextWidth(false);
-	// // searchBox = textHandler.createText();
-	// Document doc = editor.getUI().getEditorKit(editor)
-	// .createDefaultDocument();
-	// searchBox.setDocument(doc);
-	// searchBox.setHeight((int) text.getHeight());
-	// addChild(searchBox);
-	// }
-	//
-	// // copied from PStyledTextEventHandler
-	// private JTextComponent createEditor() {
-	// JTextPane tComp = new JTextPane() {
-	//
-	// private static final long serialVersionUID = -1081364272578141120L;
-	//
-	// /**
-	// * Set some rendering hints - if we don't then the rendering can be
-	// * inconsistent. Also, Swing doesn't work correctly with fractional
-	// * metrics.
-	// */
-	// public void paint(Graphics g) {
-	// Graphics2D g2 = (Graphics2D) g;
-	//
-	// g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-	// RenderingHints.VALUE_ANTIALIAS_ON);
-	// g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-	// RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-	// g2.setRenderingHint(RenderingHints.KEY_RENDERING,
-	// RenderingHints.VALUE_RENDER_QUALITY);
-	// g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,
-	// RenderingHints.VALUE_FRACTIONALMETRICS_OFF);
-	//
-	// super.paint(g);
-	// }
-	//
-	// /**
-	// * If the standard scroll rect to visible is on, then you can get
-	// * weird behaviors if the canvas is put in a scrollpane.
-	// */
-	// // public void scrollRectToVisible() {
-	// // }
-	// };
-	// // tComp.setBackground(FG);
-	// // tComp.setBorder(new CompoundBorder(new LineBorder(Color.black),
-	// // new EmptyBorder(3, 3, 3, 3)));
-	// return tComp;
-	// }
-
-	public void setMouseDoc(String doc) {
-		if (getParent() instanceof MouseDoc) {
-			((MouseDoc) getParent()).setMouseDoc(doc);
-		}
+	@Override
+	public String toString() {
+		return UtilString.toString(this, "'" + getText() + "'");
 	}
 
-	// public void setMouseDoc(Vector doc, boolean state) {
-	// if (getParent() instanceof MouseDoc) {
-	// ((MouseDoc) getParent()).setMouseDoc(doc, state);
-	// }
-	// }
-
-	// public void setMouseDoc(PNode source, boolean state) {
-	// setMouseDoc(state ? ((Button) source).mouseDoc : null);
-	// }
 }

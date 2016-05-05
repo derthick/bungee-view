@@ -1,8 +1,8 @@
-/* 
+/*
 
  Created on Dec 9, 2005
 
- The Bungee View applet lets you search, browse, and data-mine an image collection.  
+ The Bungee View applet lets you search, browse, and data-mine an image collection.
  Copyright (C) 2006  Mark Derthick
 
  This program is free software; you can redistribute it and/or
@@ -19,8 +19,8 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
- You may also contact the author at 
- mad@cs.cmu.edu, 
+ You may also contact the author at
+ mad@cs.cmu.edu,
  or at
  Mark Derthick
  Carnegie-Mellon University
@@ -32,8 +32,14 @@
 package edu.cmu.cs.bungee.piccoloUtils.gui;
 
 import java.awt.Component;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
-import java.util.Arrays;
+import java.io.Serializable;
+
+import org.apache.commons.lang3.ArrayUtils;
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
 
 import edu.cmu.cs.bungee.javaExtensions.Util;
 import edu.umd.cs.piccolo.PNode;
@@ -45,231 +51,317 @@ import edu.umd.cs.piccolo.util.PPickPath;
  * Extends PBasicInputEventHandler by automatically looking up the pick path for
  * a node of the given type, and for each gesture calling a new version of the
  * function on that node.
- * 
+ *
  * @author mad
- * 
+ *
  */
-public class MyInputEventHandler extends PBasicInputEventHandler {
 
-	private final Class nodeType;
-	private int SHIFT_KEYS_CHANGED = MouseEvent.MOUSE_LAST + 1;
+public class MyInputEventHandler<T> extends PBasicInputEventHandler implements Serializable {
+	private final Class<?> nodeType;
+	private static final int SHIFT_KEYS_CHANGED = MouseEvent.MOUSE_LAST + 1;
+
+	javax.swing.Timer timer;
+	@Nullable
+	T lastPressedNode = null;
 
 	/**
 	 * Functions should return true iff they handle the event.
-	 * 
+	 *
 	 * @param _nodeType
 	 *            Search up the PNode hierarchy for a _nodeType
 	 */
-	public MyInputEventHandler(Class _nodeType) {
+	public MyInputEventHandler(final Class<?> _nodeType) {
 		nodeType = _nodeType;
 	}
 
-	/**
-	 * Mask for up, down, left, right, home, end, and c-A
-	 */
-	public final static char[] arrowKeys = arrowKeys();
+	void initTimer(final int delayMS, final int repeatMS) {
+		if (timer != null) {
+			timer.stop();
+		}
+		final ActionListener taskPerformer = new ActionListener() {
+			@Override
+			public void actionPerformed(@SuppressWarnings("unused") final ActionEvent evt) {
+				assert lastPressedNode != null;
+				click(lastPressedNode);
+			}
+		};
+		timer = new javax.swing.Timer(delayMS, taskPerformer);
+		timer.setDelay(repeatMS);
+	}
 
-	private static char[] arrowKeys() {
-		char[] arrows = { java.awt.event.KeyEvent.VK_KP_DOWN,
-				java.awt.event.KeyEvent.VK_KP_UP,
-				java.awt.event.KeyEvent.VK_KP_LEFT,
-				java.awt.event.KeyEvent.VK_KP_RIGHT,
-				java.awt.event.KeyEvent.VK_DOWN, java.awt.event.KeyEvent.VK_UP,
-				java.awt.event.KeyEvent.VK_LEFT,
-				java.awt.event.KeyEvent.VK_RIGHT, //java.awt.event.KeyEvent.VK_A
-				// ,
-				java.awt.event.KeyEvent.VK_END, java.awt.event.KeyEvent.VK_HOME };
-		Arrays.sort(arrows);
-		return arrows;
+	public static boolean isArrowKeyOrCtrlA(final int keyCode, final int modifiers) {
+		return ArrayUtils.contains(getARROW_KEYS(), keyCode) || isControlA(keyCode, modifiers);
 	}
 
 	/**
-	 * Mask for shift and control
+	 * Mask for up, down, left, right, home, end
 	 */
-	public final static char[] shiftKeys = shiftKeys();
+	private static final int[] ARROW_KEYS = { java.awt.event.KeyEvent.VK_KP_DOWN, java.awt.event.KeyEvent.VK_KP_UP,
+			java.awt.event.KeyEvent.VK_KP_LEFT, java.awt.event.KeyEvent.VK_KP_RIGHT, java.awt.event.KeyEvent.VK_DOWN,
+			java.awt.event.KeyEvent.VK_UP, java.awt.event.KeyEvent.VK_LEFT, java.awt.event.KeyEvent.VK_RIGHT,
+			java.awt.event.KeyEvent.VK_END, java.awt.event.KeyEvent.VK_HOME };
 
-	private static char[] shiftKeys() {
-		char[] shifts = { java.awt.event.KeyEvent.VK_ALT,
-				java.awt.event.KeyEvent.VK_CONTROL,
+	public static boolean isControlA(final int keyCode, final int modifiers) {
+		final boolean isControlA = keyCode == java.awt.event.KeyEvent.VK_A && Util.isControlDown(modifiers);
+		return isControlA;
+	}
+
+	public static boolean isShiftKey(final int keyCode) {
+		return ArrayUtils.contains(SHIFT_KEYS, keyCode);
+	}
+
+	/**
+	 * alt, shift, and control
+	 */
+	static final int[] SHIFT_KEYS = shiftKeys();
+
+	private static int[] shiftKeys() {
+		final int[] shifts = { java.awt.event.KeyEvent.VK_ALT, java.awt.event.KeyEvent.VK_CONTROL,
 				java.awt.event.KeyEvent.VK_SHIFT };
-		Arrays.sort(shifts);
+		// Arrays.sort(shifts);
 		return shifts;
 	}
 
 	// These have to be public so that they can be overridden by handlers that
 	// extend this class, but are in other packages.
-	public boolean click(PNode node) {
+
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean click(final @NonNull T node) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
 		return false;
 	}
 
-	public boolean enter(PNode node) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean enter(final @NonNull T node) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
 		return false;
 	}
 
-	public boolean exit(PNode node) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean exit(final @NonNull T node) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
 		return false;
 	}
 
-	public boolean press(PNode node) {
-		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
+	// /**
+	// * @return whether event was handled
+	// */
+	// @SuppressWarnings({ "unused" })
+	// public boolean press(final T node) {
+	// // Override this
+	// return false;
+	// }
+	//
+	// /**
+	// * @return whether event was handled
+	// */
+	// @SuppressWarnings({ "unused" })
+	// public boolean release(final T node) {
+	// // Override this
+	// return false;
+	// }
+
+	boolean press(final @NonNull T node) {
+		final boolean result = timer != null;
+		if (result) {
+			lastPressedNode = node;
+			timer.restart();
+		}
+		// System.out.println("MyInputEventHandler.press isLastPressedNode="
+		// + (lastPressedNode != null) + " result=" + result);
 		return false;
 	}
 
-	public boolean release(PNode node) {
-		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
+	public boolean release(@SuppressWarnings("unused") final @NonNull T node) {
+		final boolean result = timer != null;
+		if (result) {
+			lastPressedNode = null;
+			timer.stop();
+		}
+		// System.out.println("MyInputEventHandler.release isLastPressedNode="
+		// + (lastPressedNode != null) + " result=" + result);
 		return false;
 	}
 
-	public boolean drag(PNode node) {
+	@SuppressWarnings({ "unused" })
+	private boolean drag(final @NonNull T node) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
 		return false;
 	}
 
-	public boolean moved(PNode node) {
+	@SuppressWarnings({ "unused" })
+	private boolean moved(final @NonNull T node) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
 		return false;
 	}
 
-	public boolean shiftKeysChanged(PNode node) {
+	@SuppressWarnings({ "unused" })
+	public boolean shiftKeysChanged(final @NonNull T node) { // NO_UCD (use
+																// default)
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
 		return false;
 	}
 
-	public boolean keyPress(char key) {
+	@SuppressWarnings({ "static-method", "unused" })
+	private boolean keyPress(final int keyCode) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(key);
 		return false;
 	}
 
-	public boolean keyRelease(int key) {
+	@SuppressWarnings({ "static-method", "unused" })
+	private boolean keyRelease(final int keyCode) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(key);
 		return false;
 	}
 
-	public boolean click(PNode node, PInputEvent e) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean click(final @NonNull T node, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	public boolean enter(PNode node, PInputEvent e) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean enter(final @NonNull T node, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	public boolean exit(PNode node, PInputEvent e) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean exit(final @NonNull T node, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	public boolean press(PNode node, PInputEvent e) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean press(final @NonNull T node, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	public boolean release(PNode node, PInputEvent e) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean release(final @NonNull T node, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	public boolean drag(PNode node, PInputEvent e) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean drag(final @NonNull T node, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	public boolean moved(PNode node, PInputEvent e) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean moved(final @NonNull T node, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	public boolean shiftKeysChanged(PNode node, PInputEvent e) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "unused" })
+	public boolean shiftKeysChanged(final @NonNull T node, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	public boolean keyPress(char key, PInputEvent e) {
+	/**
+	 * @return whether event was handled
+	 */
+	@SuppressWarnings({ "static-method", "unused" })
+	public boolean keyPress(final int keyCode, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(key);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	public boolean keyRelease(int key, PInputEvent e) {
+	@SuppressWarnings({ "static-method", "unused" })
+	private boolean keyRelease(final int keyCode, final @NonNull PInputEvent e) {
 		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(key);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
 		return false;
 	}
 
-	private void wrongType(PInputEvent e, String eventType) {
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(e);
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(eventType);
+	@SuppressWarnings({ "unused" })
+	private void wrongType(final @NonNull PInputEvent e, final String eventType) {
 		// gui.Util.printDescendents(e.getPickedNode());
-		//		
+		//
 		// Exception ex = new Exception(
 		// "MyInputEventHandler " + eventType + " a PNode that's not a "
 		// + nodeType + ": " + e.getPickedNode());
-		//		
+		//
 		// // Don't need both of these
-		// // Util.print(ex);
+		// // System.out.println(ex);
 		// ex.printStackTrace();
 		// // throw(ex);
 	}
 
-	public void mayHideTransients(PNode node) {
-		// Override this
-		assert edu.cmu.cs.bungee.javaExtensions.Util.ignore(node);
-	}
+	// /**
+	// * Nothing calls this!
+	// */
+	// @SuppressWarnings({ "unused" })
+	// public void mayHideTransients(final T node) {
+	// // Override this
+	// }
 
 	/*
 	 * see mousePressed
 	 */
-	public final void mouseClicked(PInputEvent e) {
+	@Override
+	@SuppressWarnings({ "unused" })
+	public final void mouseClicked(final @Nullable PInputEvent e) {
 		// Toolkit.getDefaultToolkit().beep();
-		PNode node = findNodeType(e);
-		if (false && node != null) {
-			mayHideTransients(node);
-			e.setHandled(click(node) || click(node, e));
+		// T node = findNodeType(e);
+		// if (false && node != null) {
+		// mayHideTransients(node);
+		// e.setHandled(click(node) || click(node, e));
+		// }
+	}
+
+	@Override
+	public void mouseEntered(final PInputEvent e) {
+		@SuppressWarnings("null")
+		final @Nullable T node = findNodeType(e);
+		if (node != null) {
+			e.setHandled(enter(node) || enter(node, e));
 		}
 	}
 
-	public void mouseEntered(PInputEvent e) {
-		PNode node = findNodeType(e);
-		if (node != null)
-			e.setHandled(enter(node) || enter(node, e));
-	}
-
-	public void mouseExited(PInputEvent e) {
-		PNode node = findNodeType(e);
-		if (node != null)
+	@Override
+	public void mouseExited(final PInputEvent e) {
+		@SuppressWarnings("null")
+		final @Nullable T node = findNodeType(e);
+		if (node != null) {
 			e.setHandled(exit(node) || exit(node, e));
+		}
 	}
 
 	/*
@@ -277,41 +369,57 @@ public class MyInputEventHandler extends PBasicInputEventHandler {
 	 * doesn't. Therefore treat pressed as both. This means a click will act
 	 * like 2 presses and a click, so don't do any actions on press, just set
 	 * drag initial states.
-	 * 
+	 *
 	 * Note that modifiers may be different for press and click, at least for
 	 * mouse button modifiers
 	 */
-	public final void mousePressed(PInputEvent e) {
-		// Util.print("mousePressed");
-		PNode node = findNodeType(e);
+	@Override
+	public final void mousePressed(final PInputEvent e) {
+		// System.out.println("mousePressed");
+		@SuppressWarnings("null")
+		final @Nullable T node = findNodeType(e);
 		if (node != null/* &&e.getClickCount()==1 */) {
-			mayHideTransients(node);
+			// This was hiding PerspectiveList when you clicked on a RankLabel
+			// to hide the PL, which would toggle it back to visible! Do it on
+			// mouseReleased instead. That's no good either, as it hides PL as
+			// soon as its shown.
+			// mayHideTransients(node);
 			e.setHandled(press(node) || press(node, e));
 			e.setHandled(click(node) || click(node, e));
 		}
 	}
 
-	public void mouseReleased(PInputEvent e) {
-		PNode node = findNodeType(e);
-		if (node != null)
+	@Override
+	public void mouseReleased(final PInputEvent e) {
+		@SuppressWarnings("null")
+		final @Nullable T node = findNodeType(e);
+		if (node != null) {
 			e.setHandled(release(node) || release(node, e));
+		}
 	}
 
-	public void mouseDragged(PInputEvent e) {
-		PNode node = findNodeType(e);
-		if (node != null)
+	@Override
+	public void mouseDragged(final PInputEvent e) {
+		@SuppressWarnings("null")
+		final @Nullable T node = findNodeType(e);
+		if (node != null) {
 			e.setHandled(drag(node) || drag(node, e));
+		}
 	}
 
-	public void mouseMoved(PInputEvent e) {
-		PNode node = findNodeType(e);
-		if (node != null)
+	@Override
+	public void mouseMoved(final PInputEvent e) {
+		@SuppressWarnings("null")
+		final @Nullable T node = findNodeType(e);
+		if (node != null) {
 			e.setHandled(moved(node) || moved(node, e));
+		}
 	}
 
-	private PNode findNodeType(PInputEvent e) {
+	private @Nullable T findNodeType(final @NonNull PInputEvent e) {
 		prevModifiers = e.getModifiersEx();
-		PNode node = null;
+		@Nullable
+		T node = null;
 		if (!e.isHandled()) {
 			node = findNodeType(e.getPickedNode());
 			if (node == null) {
@@ -321,31 +429,33 @@ public class MyInputEventHandler extends PBasicInputEventHandler {
 		return node;
 	}
 
-	private PNode findNodeType(PNode node) {
+	@SuppressWarnings("unchecked")
+	private T findNodeType(PNode node) {
 		while (node != null && !nodeType.isInstance(node)) {
-			// Util.print(nodeType + " " + node);
+			// System.out.println(nodeType + " " + node);
 			node = node.getParent();
 		}
-		// Util.print(nodeType + " => " + node);
-		return node;
+		// System.out.println(nodeType + " => " + node);
+		return (T) node;
 	}
 
-	// Note that Windows catches the Alt key and the window loses focus!!!
-	public void keyPressed(PInputEvent e) {
-		mayHideTransients(null);
-		char key = (char) e.getKeyCode();
-		// Util.print("keyPressed " + e.getKeyCode() + " " + key);
-		if (keyPress(key) || keyPress(key, e)) {
+	@Override
+	public void keyPressed(final PInputEvent e) {
+		// mayHideTransients(null);
+		final int keyCode = e.getKeyCode();
+		// System.out.println("keyPressed " + e.getKeyCode() + " " + keyCode);
+		if (keyPress(keyCode) || keyPress(keyCode, e)) {
 			e.setHandled(true);
 		} else {
 			maybeShiftKeysChanged(e);
 		}
 	}
 
-	public void keyReleased(PInputEvent e) {
+	@Override
+	public void keyReleased(final PInputEvent e) {
 		// mayHideTransients(null);
-		int key = e.getKeyCode();
-		if (keyRelease(key) || keyRelease(key, e)) {
+		final int keyCode = e.getKeyCode();
+		if (keyRelease(keyCode) || keyRelease(keyCode, e)) {
 			e.setHandled(true);
 		} else {
 			maybeShiftKeysChanged(e);
@@ -357,20 +467,18 @@ public class MyInputEventHandler extends PBasicInputEventHandler {
 	/**
 	 * Transform a shift- or control-key event to a MouseEvent on the current
 	 * mouseOver. I.e. treat control keys like additional mouse buttons.
-	 * 
+	 *
 	 * @param e
 	 */
-	private void maybeShiftKeysChanged(PInputEvent e) {
-		if (Util.isMember(shiftKeys, (char) e.getKeyCode())) {
-			PPickPath path = e.getInputManager().getMouseOver();
-			PInputEvent ePrime = new PInputEvent(e.getInputManager(),
-					new MouseEvent((Component) e.getSourceSwingEvent()
-							.getSource(), SHIFT_KEYS_CHANGED, e.getWhen(), e
-							.getModifiersEx(), -1, -1, 0, false,
-							MouseEvent.NOBUTTON));
+	private static void maybeShiftKeysChanged(final @NonNull PInputEvent e) {
+		if (ArrayUtils.contains(SHIFT_KEYS, e.getKeyCode())) {
+			final PPickPath path = e.getInputManager().getMouseOver();
+			final @NonNull PInputEvent ePrime = new PInputEvent(e.getInputManager(),
+					new MouseEvent((Component) e.getSourceSwingEvent().getSource(), SHIFT_KEYS_CHANGED, e.getWhen(),
+							e.getModifiersEx(), -1, -1, 0, false, MouseEvent.NOBUTTON));
 			try {
 				path.processEvent(ePrime, SHIFT_KEYS_CHANGED);
-			} catch (Throwable ignore) {
+			} catch (final Throwable ignore) {
 				// ePrime might be handled by a listener that isn't a
 				// MyInputEventHandler,
 				// in which case it will barf on SHIFT_KEYS_CHANGED
@@ -381,17 +489,22 @@ public class MyInputEventHandler extends PBasicInputEventHandler {
 		}
 	}
 
-	public void processEvent(PInputEvent e, int type) {
+	@Override
+	public void processEvent(final PInputEvent e, final int type) {
 		if (type == SHIFT_KEYS_CHANGED) {
-			// Util.print("SHIFT_KEYS_CHANGED");
+			// System.out.println("SHIFT_KEYS_CHANGED");
 			if (e.getModifiersEx() != prevModifiers) {
-				PNode node = findNodeType(e);
-				if (node != null)
-					e.setHandled(shiftKeysChanged(node)
-							|| shiftKeysChanged(node, e));
+				final @Nullable T node = findNodeType(e);
+				if (node != null) {
+					e.setHandled(shiftKeysChanged(node) || shiftKeysChanged(node, e));
+				}
 			}
 		} else {
 			super.processEvent(e, type);
 		}
+	}
+
+	public static int[] getARROW_KEYS() {
+		return ARROW_KEYS;
 	}
 }

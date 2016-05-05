@@ -1,8 +1,8 @@
-/* 
+/*
 
 Created on Apr 4, 2005
 
-The Bungee View applet lets you search, browse, and data-mine an image collection.  
+The Bungee View applet lets you search, browse, and data-mine an image collection.
 Copyright (C) 2006  Mark Derthick
 
 This program is free software; you can redistribute it and/or
@@ -19,8 +19,8 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-You may also contact the author at 
-mad@cs.cmu.edu, 
+You may also contact the author at
+mad@cs.cmu.edu,
 or at
 Mark Derthick
 Carnegie-Mellon University
@@ -32,39 +32,36 @@ package edu.cmu.cs.bungee.piccoloUtils.gui;
 
 import java.awt.Color;
 
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
+
 import edu.umd.cs.piccolo.PNode;
 import edu.umd.cs.piccolo.event.PInputEvent;
 
-public class HScrollbar extends VScrollbar {
+public class HScrollbar extends VScrollbar { // NO_UCD (unused code)
 
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
-
-	public HScrollbar(double sw, double sh, Color _BG, Color _FG,
-			Runnable _action) {
+	public HScrollbar(final double sw, final double sh, final @Nullable Color _BG, final @NonNull Color _FG,
+			final @NonNull Runnable _action) {
 		super(-sw, sw, sh, _BG, _FG, _action);
-		// super(sw, sh, _BG, _FG, _action);
 		setRotation(-Math.PI / 2.0);
-		down.mouseDoc = "Scroll right one lilne";
-		up.mouseDoc = "Scroll left one lilne";
+		downButton.mouseDoc = "Scroll right one line";
+		upButton.mouseDoc = "Scroll left one line";
 	}
 
-	public void drag(PInputEvent e) {
-		double dy = e.getDelta().getWidth();
-		spos0 += dy;
-		// System.out.println(spos0 * ratio);
-		setPos(spos0 * ratio);
+	@Override
+	public void drag(final @NonNull PInputEvent e) {
+		dragPosition += e.getDelta().getWidth();
+		setThumbPosition(dragPosition);
 	}
 
-	void mouseDoc(PNode node, PInputEvent e, boolean state) {
+	@Override
+	void setMouseDoc(final @NonNull PNode node, final @NonNull PInputEvent e, final boolean state) {
 		assert node == this;
 		String desc = null;
 		if (state) {
-			PNode pickedNode = e.getPickedNode();
+			final PNode pickedNode = e.getPickedNode();
 			if (pickedNode == node) {
-				desc = getPageDirection(e) > 0 ? "Page left" : "Page right";
+				desc = getPageDirection(e) == ScrollDirection.DOWN ? "Page left" : "Page right";
 			} else {
 				desc = "Start dragging scrollbar";
 			}

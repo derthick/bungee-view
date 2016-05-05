@@ -1,8 +1,8 @@
-/* 
+/*
 
 Created on Dec 20, 2005
 
-The Bungee View applet lets you search, browse, and data-mine an image collection.  
+The Bungee View applet lets you search, browse, and data-mine an image collection.
 Copyright (C) 2006  Mark Derthick
 
 This program is free software; you can redistribute it and/or
@@ -19,8 +19,8 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-You may also contact the author at 
-mad@cs.cmu.edu, 
+You may also contact the author at
+mad@cs.cmu.edu,
 or at
 Mark Derthick
 Carnegie-Mellon University
@@ -31,30 +31,22 @@ Pittsburgh, PA 15213
 
 package edu.cmu.cs.bungee.piccoloUtils.gui;
 
+import org.eclipse.jdt.annotation.Nullable;
 
 /**
  * Support Genera-like Mouse Documentation Line at the bottom of the window. The
  * application sends these messages to its Mouse Documentation Line, and
  * descendents pass messages up. The messages can be either something that
  * implements MouseDoc and can describe themselves, or a String to display.
- * 
- * @author mad
- * 
  */
 public interface MouseDoc {
-
-	/**
-	 * @param source
-	 *            the MouseDoc whose description is to be displayed.
-	 * @param state whether we're entering (false for exiting)
-	 */
-//	public void setMouseDoc(PNode source, boolean state);
 
 	/**
 	 * @param doc
 	 *            the String to display, or null to hide display.
 	 */
-	public void setMouseDoc(String doc);
-	// public void setMouseDoc(Markup doc, boolean state);
+	public void setMouseDoc(@Nullable String doc);
+
+	// public @Nullable String getMouseDoc();
 
 }

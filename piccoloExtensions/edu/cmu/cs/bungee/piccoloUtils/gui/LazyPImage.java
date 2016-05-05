@@ -1,38 +1,6 @@
-/*
-
- Created on Mar 10, 2006
-
- The Bungee View applet lets you search, browse, and data-mine an image collection.
- Copyright (C) 2006  Mark Derthick
-
- This program is free software; you can redistribute it and/or
- modify it under the terms of the GNU General Public License
- as published by the Free Software Foundation; either version 2
- of the License, or (at your option) any later version.  See gpl.html.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
- You may also contact the author at
- mad@cs.cmu.edu,
- or at
- Mark Derthick
- Carnegie-Mellon University
- Human-Computer Interaction Institute
- Pittsburgh, PA 15213
-
- */
-
 package edu.cmu.cs.bungee.piccoloUtils.gui;
 
 import java.awt.Color;
-import java.awt.Paint;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.Collection;
@@ -43,46 +11,27 @@ import javax.swing.event.EventListenerList;
 
 import org.eclipse.jdt.annotation.NonNull;
 
-import edu.umd.cs.piccolo.PCamera;
+import edu.cmu.cs.bungee.piccoloUtils.gui.LazyPNode.PickableMode;
 import edu.umd.cs.piccolo.PNode;
-import edu.umd.cs.piccolo.PRoot;
 import edu.umd.cs.piccolo.activities.PColorActivity.Target;
 import edu.umd.cs.piccolo.activities.PInterpolatingActivity;
 import edu.umd.cs.piccolo.event.PInputEventListener;
+import edu.umd.cs.piccolo.nodes.PImage;
 import edu.umd.cs.piccolo.util.PBounds;
 
-public class LazyPNode extends PNode implements Target, LazyNode {
+public class LazyPImage extends PImage implements Target, LazyNode {
 
-	protected static final long serialVersionUID = 1L;
+	public LazyPImage() {
+	}
 
 	// TODO Remove unused code found by UCDetector
 	// public static final double MINIMUM_VISIBLE_SIZE = 0.3;
 
-	public enum PickableMode {
-		PICKABLE_MODE_NEVER, PICKABLE_MODE_AUTOMATIC, PICKABLE_MODE_ALWAYS
-	}
-
 	private @NonNull PickableMode pickableMode = PickableMode.PICKABLE_MODE_AUTOMATIC;
-
-	public LazyPNode() {
-	}
 
 	@Override
 	public PNode pNode() {
 		return this;
-	}
-
-	/**
-	 * PRoot can get much bigger than the screen: its getGlobalBounds are empty,
-	 * and getGlobalFullBounds includes stuff off the screen. The PCamera always
-	 * covers the window exactly.
-	 */
-	public PCamera getCamera() {
-		final PRoot root = getRoot();
-		assert root != null : PiccoloUtil.ancestorString(this);
-		final PCamera camera = (PCamera) PiccoloUtil.findDescendentNodeType(root, PCamera.class);
-		assert camera != null;
-		return camera;
 	}
 
 	@Override
@@ -127,23 +76,6 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 		}
 	}
 
-	// TODO Remove unused code found by UCDetector
-	// public boolean setMyTransparency(final float newTransparency) {
-	// final boolean result = newTransparency != getTransparency();
-	// if (result) {
-	// setTransparency(newTransparency);
-	// }
-	// return result;
-	// }
-
-	public boolean setMyPaint(final Paint newPaint) {
-		final boolean result = newPaint != getPaint();
-		if (result) {
-			setPaint(newPaint);
-		}
-		return result;
-	}
-
 	@Override
 	public void setVisible(final boolean state) {
 		if (getVisible() != state) {
@@ -161,14 +93,11 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 		pickableMode = _pickableMode;
 		final boolean pickableState = (pickableMode == PickableMode.PICKABLE_MODE_AUTOMATIC) ? getVisible()
 				: pickableMode == PickableMode.PICKABLE_MODE_ALWAYS;
-		if (getPickable() != pickableState) {
-			setPickable(pickableState);
-			setChildrenPickable(pickableState);
-		}
+		setPickable(pickableState);
+		setChildrenPickable(pickableState);
 	}
 
 	@Override
-	// Possibly avoid unnecessary invalidatePaint
 	public void setOffset(final double x, final double y) {
 		if (x != getXOffset() || y != getYOffset()) {
 			super.setOffset(x, y);
@@ -188,17 +117,6 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 	@Override
 	public boolean setWidthHeight(final double w, final double h) {
 		return setBounds(getX(), getY(), w, h);
-	}
-
-	@Override
-	public boolean setBounds(final double x, final double y, final double w, final double h) {
-		// assert assertInteger(x) && assertInteger(y) && assertInteger(w) &&
-		// assertInteger(h);
-		assert w >= 0.0 && h >= 0.0 : w + " x " + h;
-		final boolean result = super.setBounds(x, y, w, h);
-		assert getX() == x && getY() == y && (w == 0.0 || getWidth() == w) && (h == 0.0 || getHeight() == h) : x + " "
-				+ y + " " + w + " " + h + " " + getBoundsReference();
-		return result;
 	}
 
 	@Override
@@ -227,7 +145,6 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 	}
 
 	@Override
-	// Possibly avoid unnecessary invalidatePaint
 	public void setScale(final double scale) {
 		if (scale != getScale()) {
 			scale(scale / getScale());
@@ -298,11 +215,13 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 				Math.rint(bounds.getHeight()));
 	}
 
-	protected boolean setBoundsFromChildrenBounds() {
-		final PBounds bounds = getUnionOfChildrenBounds(null);
-		return setBounds(Math.rint(bounds.getX()), Math.rint(bounds.getY()), Math.rint(bounds.getWidth()),
-				Math.rint(bounds.getHeight()));
-	}
+	// TODO Remove unused code found by UCDetector
+	// protected boolean setBoundsFromChildrenBounds() {
+	// final PBounds bounds = getUnionOfChildrenBounds(null);
+	// return setBounds(Math.rint(bounds.getX()), Math.rint(bounds.getY()),
+	// Math.rint(bounds.getWidth()),
+	// Math.rint(bounds.getHeight()));
+	// }
 
 	@Override
 	public void repaintNow() {
@@ -310,45 +229,42 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 		validateFullPaint();
 	}
 
-	/**
-	 * @return the minimum width this node requires
-	 */
-	public double minWidth() {
-		assert false : "Should override LazyPNode.minWidth";
-		return getWidth();
-	}
+	// TODO Remove unused code found by UCDetector
+	// /**
+	// * @return the minimum width this node requires
+	// */
+	// public double minWidth() {
+	// assert false : "Should override LazyPNode.minWidth";
+	// return getWidth();
+	// }
 
-	/**
-	 * @return the maximum width this node can handle
-	 */
-	public double maxWidth() {
-		assert false : "Should override LazyPNode.maxWidth: " + PiccoloUtil.ancestorString(this);
-		return getWidth();
-	}
+	// TODO Remove unused code found by UCDetector
+	// /**
+	// * @return the maximum width this node can handle
+	// */
+	// public double maxWidth() {
+	// assert false : "Should override LazyPNode.maxWidth: " +
+	// PiccoloUtil.ancestorString(this);
+	// return getWidth();
+	// }
 
-	/**
-	 * @return the minimum height this node requires. Always equals an int.
-	 */
-	public double minHeight() {
-		assert false : "Should override LazyPNode.minHeight";
-		return getHeight();
-	}
+	// TODO Remove unused code found by UCDetector
+	// /**
+	// * @return the minimum height this node requires
+	// */
+	// public double minHeight() {
+	// assert false : "Should override LazyPNode.minHeight";
+	// return getHeight();
+	// }
 
-	/**
-	 * @return the maximum height this node can handle
-	 */
-	public double maxHeight() {
-		assert false : "Should override LazyPNode.maxHeight";
-		return getHeight();
-	}
-
-	public void enterBoundary(@SuppressWarnings("unused") final @NonNull Boundary boundary) {
-		// override this
-	}
-
-	public void exitBoundary(@SuppressWarnings("unused") final Boundary boundary) {
-		// override this
-	}
+	// TODO Remove unused code found by UCDetector
+	// /**
+	// * @return the maximum height this node can handle
+	// */
+	// public double maxHeight() {
+	// assert false : "Should override LazyPNode.maxHeight";
+	// return getHeight();
+	// }
 
 	@Override
 	public void addChild(final PNode child) {
@@ -360,7 +276,6 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 	}
 
 	@Override
-	// Possibly avoid unnecessary invalidatePaint
 	public void moveInBackOf(final PNode sibling) {
 		final PNode parent = getParent();
 		if (parent != null && parent.indexOfChild(this) > parent.indexOfChild(sibling)) {
@@ -369,7 +284,6 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 	}
 
 	@Override
-	// Possibly avoid unnecessary invalidatePaint
 	public void moveInFrontOf(final PNode sibling) {
 		final PNode parent = getParent();
 		if (parent != null && parent.indexOfChild(this) < parent.indexOfChild(sibling)) {
@@ -378,7 +292,6 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 	}
 
 	@Override
-	// Possibly avoid unnecessary invalidatePaint
 	public void moveToFront() {
 		final PNode parent = getParent();
 		if (parent != null && parent.getChild(parent.getChildrenCount() - 1) != this) {
@@ -392,7 +305,6 @@ public class LazyPNode extends PNode implements Target, LazyNode {
 	}
 
 	@Override
-	// Possibly avoid unnecessary invalidatePaint
 	public void moveToBack() {
 		final PNode p = getParent();
 		if (p != null && p.getChild(0) != this) {

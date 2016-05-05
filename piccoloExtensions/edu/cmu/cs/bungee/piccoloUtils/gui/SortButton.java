@@ -4,80 +4,58 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
 
-public class SortButton extends TextButton {
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
 
-	/**
-	 * 
-	 */
+import edu.cmu.cs.bungee.javaExtensions.UtilString;
+
+public class SortButton<E> extends TextButton {
+
 	private static final long serialVersionUID = 1L;
 
-	private static final String z_aLabel = "\u2193";
+	private final @NonNull E sortField;
+	private final @NonNull SortDirection defaultDirection;
+	private @NonNull SortDirection direction;
+	private final @NonNull SortButtons<E> container;
 
-	private static final String a_zLabel = "\u2191";
-
-	private static final String noneLabel = " ";
-
-	private int sortField;
-
-	private int defaultDirection;
-
-	private SortButtons container;
-
-	public SortButton(int field, int _defaultDirection, Font font,
-			SortButtons _container, Color textColor, Color bgColor) {
-		super(noneLabel, font, 0, 0, -1, -1, null, "Sort by this column", 2,
-				textColor, bgColor);
+	public SortButton(final @NonNull E field, final @NonNull SortDirection _defaultDirection, final @NonNull Font font,
+			final @NonNull SortButtons<E> _container, final Color textColor, final @Nullable Color bgColor,
+			@Nullable final String _mouseDoc) {
+		super(SortDirection.NONE.getLabel(), font, 0.0, 0.0, -1.0, -1.0, null,
+				_mouseDoc != null ? _mouseDoc : "Sort by this column", true, textColor, bgColor);
 		setJustification(Component.CENTER_ALIGNMENT);
 		sortField = field;
 		defaultDirection = _defaultDirection;
+		direction = _defaultDirection;
 		container = _container;
 	}
 
-	private void setOrder(int field, int direction) {
-		int myDirection = field == sortField ? direction : 0;
-		String s = null;
-		switch (myDirection) {
-		case 1:
-			s = a_zLabel;
-			break;
-		case 0:
-			s = noneLabel;
-			break;
-		case -1:
-			s = z_aLabel;
-			break;
-		default:
-			assert false : direction;
+	@Override
+	public String toString() {
+		return UtilString.toString(this, sortField);
+	}
+
+	public void setDirection(final @NonNull E field, final @NonNull SortDirection _direction) {
+		assert _direction == SortDirection.A_Z || _direction == SortDirection.Z_A : _direction;
+		direction = field == sortField ? _direction : SortDirection.NONE;
+		try {
+			setText(direction.getLabel());
+		} catch (final AssertionError e) {
+			System.err.println("While SortButton.setDirection " + this + ":\n");
+			e.printStackTrace();
 		}
-		setText(s);
 	}
 
-	private int getDirection() {
-		int result = 0;
-		String s = getText();
-		if (s.equals(a_zLabel))
-			result = 1;
-		else if (s.equals(noneLabel))
-			result = 0;
-		else if (s.equals(z_aLabel))
-			result = -1;
-		else
-			assert false : s;
-		return result;
+	private @NonNull SortDirection getDirection() {
+		return direction;
 	}
 
+	@Override
 	public void doPick() {
-		int oldDirection = getDirection();
-		int direction = oldDirection == 0 ? defaultDirection : -oldDirection;
-		updateButtons(sortField, direction);
-		container.setOrder(sortField, direction);
-	}
-
-	public void updateButtons(int field, int direction) {
-		SortButton[] buttons = container.getSortButtons();
-		for (int i = 0; i < buttons.length; i++) {
-			buttons[i].setOrder(field, direction);
-		}
+		final @NonNull SortDirection oldDirection = getDirection();
+		final @NonNull SortDirection _direction = (oldDirection == SortDirection.NONE) ? defaultDirection
+				: oldDirection.reverseDirection();
+		container.setOrder(sortField, _direction);
 	}
 
 }
