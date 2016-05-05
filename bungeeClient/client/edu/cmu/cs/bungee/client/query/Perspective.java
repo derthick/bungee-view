@@ -1,8 +1,8 @@
-/* 
- 
- Created on Mar 8, 2005 
+/*
 
- Bungee View lets you search, browse, and data-mine an image collection.  
+ Created on Mar 8, 2005
+
+ Bungee View lets you search, browse, and data-mine an image collection.
  Copyright (C) 2006  Mark Derthick
 
  This program is free software; you can redistribute it and/or
@@ -19,8 +19,8 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
- You may also contact the author at 
- mad@cs.cmu.edu, 
+ You may also contact the author at
+ mad@cs.cmu.edu,
  or at
  Mark Derthick
  Carnegie-Mellon University
@@ -31,236 +31,245 @@
 
 package edu.cmu.cs.bungee.client.query;
 
-import java.awt.Color;
-import java.awt.event.InputEvent;
-import java.io.DataInputStream;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.text.CollationKey;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.Map.Entry;
+
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
 
 import JSci.maths.statistics.ChiSq2x2;
-import JSci.maths.statistics.OutOfRangeException;
+import JSci.maths.statistics.ChiSqParams;
+import edu.cmu.cs.bungee.client.query.markup.DescriptionPreposition;
+import edu.cmu.cs.bungee.client.query.markup.Markup;
+import edu.cmu.cs.bungee.client.query.markup.MarkupElement;
+import edu.cmu.cs.bungee.client.query.markup.PerspectiveMarkupElement;
+import edu.cmu.cs.bungee.client.query.markup.Restrictions;
+import edu.cmu.cs.bungee.client.query.query.Query;
+import edu.cmu.cs.bungee.client.query.query.Query.DescriptionCategory;
+import edu.cmu.cs.bungee.client.viz.bungeeCore.BungeeConstants;
+import edu.cmu.cs.bungee.client.viz.bungeeCore.BungeeConstants.Significance;
+import edu.cmu.cs.bungee.compile.Compile;
 import edu.cmu.cs.bungee.javaExtensions.MyResultSet;
-import edu.cmu.cs.bungee.javaExtensions.PerspectiveObserver;
+import edu.cmu.cs.bungee.javaExtensions.RedrawCallback;
 import edu.cmu.cs.bungee.javaExtensions.Util;
-import edu.cmu.cs.bungee.javaExtensions.comparator.DoubleValueComparator;
+import edu.cmu.cs.bungee.javaExtensions.UtilArray;
+import edu.cmu.cs.bungee.javaExtensions.UtilMath;
+import edu.cmu.cs.bungee.javaExtensions.UtilString;
+import edu.cmu.cs.bungee.javaExtensions.YesNoMaybe;
 import edu.cmu.cs.bungee.javaExtensions.comparator.IntValueComparator;
+import edu.cmu.cs.bungee.servlet.FetchType;
+import jdk.nashorn.internal.ir.annotations.Immutable;
+import uk.org.bobulous.java.intervals.Enumerable;
+import uk.org.bobulous.java.intervals.GenericInterval;
+import uk.org.bobulous.java.intervals.Interval;
 
 /**
  * aka Facet. a property that an Item can have.
- * 
- * @author mad
  */
-public class Perspective implements ItemPredicate {
+/**
+ *
+ */
+public class Perspective implements ItemPredicate, Enumerable<Perspective> {
+
+	public static final double ODDS_RANGE = 100.0;
+	public static final double LOG_ODDS_RANGE = Math.log(ODDS_RANGE);
+	public static final double INVERSE_ODDS_RANGE = 1.0 / ODDS_RANGE;
+
+	private static final int FETCH_TYPE_INCREMENT_FOR_MANY_CHILDREN = +1;
+	/**
+	 * Only the database pays attention to this
+	 */
+	private static final int FETCH_TYPE_INCREMENT_FOR_RESTRICTED_DATA = +4;
 
 	/**
 	 * Perspective for the more general facet or facet_type, Only changes if
 	 * isEditable
 	 */
+	@Nullable
 	Perspective parent;
 
 	/**
 	 * Only changes if isEditable
 	 */
-	int facet_id;
-
-	private int totalCount = -1;
-
-	int onCount = -1;
+	private int facet_id;
+	protected String name;
+	/**
+	 * Should only change if is {@link Query#isEditable}
+	 */
+	int nChildrenRaw = 0;
 
 	/**
-	 * The SUM of the totalCounts for us and our previous siblings. Used for
-	 * placing bars.
+	 * Used to determine whether {@link #pValueChiSq2x2} is up to date. Never
+	 * negative.
 	 */
-	int cumCount;
+	private int pValueQueryVersion = Integer.MAX_VALUE;
 
-	private InstantiatedPerspective instantiatedPerspective = null;
+	private @NonNull ChiSq2x2 pValueChiSq2x2 = ChiSq2x2.UNINFORMATIVE_CHI_SQ_2X2;
 
-	// public static final Comparator indexComparator = new IndexComparator();
+	/**
+	 * The SUM of the totalCounts for us and our previous siblings. Used only by
+	 * LetterLabeled. MAYBE GET RID OF IT.
+	 */
+	private int cumTotalCount;
+	private final InstantiatedPerspective instantiatedPerspective;
+	private PerspectiveMarkupElement[] markups;
+	private final @NonNull Query query;
+	protected int whichChildRaw;
 
-	static final String[] filterTypes = { " = ", " \u2260 " };
-
-	static final Color[] filterColors = { Markup.INCLUDED_COLORS[0],
-			Markup.EXCLUDED_COLORS[0] };
-
-	// static final Perspective[] noDescendents = new ItemPredicate[0];
-	//
-	// /**
-	// * Used to sort dataIndexByOn.
-	// */
-	// private static final Comparator onCountComparator = new
-	// OnCountComparator();
-	//
-	// private static final Comparator totalCountComparator = new
-	// TotalCountComparator();
-
-	Perspective(int _facet_id, Perspective _parent, String _name,
-			int _children_offset, int n_children) {
-		// Util.print("Perspective " + _name + " " + _children_offset + " "
-		// + n_children);
-		assert _parent != null;
-		assert _parent.query().findPerspectiveIfPossible(facet_id) == null : _parent
-				+ " " + _name;
+	/**
+	 * Only called by DummyPerspective.<init>
+	 */
+	public Perspective(final @NonNull Perspective _parent) {
 		parent = _parent;
+		query = parent.query();
+		instantiatedPerspective = null;
+	}
+
+	/**
+	 * Only called by ensureChild()
+	 */
+	private Perspective(final int _facet_id, final @NonNull Perspective _parent, final @Nullable String name1,
+			final int children_offset, final int n_children) {
+		assert _facet_id > 0 : _facet_id;
+		assert _parent.getChildrenOffset() > 0 : _parent;
+		assert _parent.query().findPerspectiveIfCached(_facet_id) == null : _parent + " " + name1;
+
 		facet_id = _facet_id;
-		if (_name != null || n_children > 0) {
-			instantiatedPerspective = new InstantiatedPerspective(this,
-					n_children, _children_offset, _name);
+		parent = _parent;
+		query = parent.query();
+		whichChildRaw = facet_id - _parent.getChildrenOffset() - 1;
+		name = name1;
+		nChildrenRaw = n_children;
+		instantiatedPerspective = nChildrenRaw > 0 ? new InstantiatedPerspective(this, _parent, children_offset) : null;
+		query().cachePerspective(facet_id, this);
+	}
+
+	/**
+	 * Only called by initFacetTypes().
+	 */
+	public Perspective(final int _facet_id, final @NonNull String _name, final int _children_offset,
+			final int n_children, final @NonNull DescriptionCategory _descriptionCategory,
+			final @NonNull String _descriptionPreposition, final @NonNull Query _q, final int flags) {
+		query = _q;
+		parent = null;
+		facet_id = _facet_id;
+		whichChildRaw = facet_id - 1;
+		name = _name;
+		nChildrenRaw = n_children;
+		instantiatedPerspective = nChildrenRaw > 0
+				? new InstantiatedPerspective(this, _children_offset, _descriptionCategory, _descriptionPreposition)
+				: null;
+		setIsAlphabetic(UtilMath.isBit(flags, 0));
+		instantiatedPerspective.isOrdered = UtilMath.isBit(flags, 1);
+		query().cachePerspective(facet_id, this);
+	}
+
+	/*************************************************************************
+	 * All Markup stuff is offloaded to PerspectiveMarkupElement
+	 *************************************************************************/
+
+	public @NonNull Markup defaultClickDesc() {
+		return getMarkupElement().defaultClickDesc();
+	}
+
+	/**
+	 * @return singular, positive, MarkupElement.
+	 */
+	public @NonNull PerspectiveMarkupElement getMarkupElement() {
+		return getMarkupElement(false, false);
+	}
+
+	public @NonNull PerspectiveMarkupElement getMarkupElement(final boolean isPlural, final boolean negated) {
+		int index = 0;
+		if (isPlural) {
+			index += 1;
 		}
-	}
-
-	Perspective(int _facet_id, Perspective _parent, String _name,
-			int _children_offset, int n_children, String _descriptionCategory,
-			String _descriptionPreposition, Query _q) {
-		// Util.print("Perspective " + _name);
-		assert _q.findPerspectiveIfPossible(facet_id) == null : _parent + " "
-				+ _name;
-		parent = _parent;
-		facet_id = _facet_id;
-		instantiatedPerspective = new InstantiatedPerspective(n_children,
-				_children_offset, _name, _descriptionCategory,
-				_descriptionPreposition, _q);
-	}
-
-	// void setDescriptionInfo(String _descriptionPreposition) {
-	// // Util.print("instantiate " + name + " " + nChildren);
-	// instantiatedPerspective.setDescriptionInfo(_descriptionPreposition);
-	// }
-
-	/**
-	 * Can be called from thread prefetcher
-	 */
-	InstantiatedPerspective ensureInstantiatedPerspective() {
-		if (instantiatedPerspective == null)
-			instantiatedPerspective = new InstantiatedPerspective(this);
-		return instantiatedPerspective;
-	}
-
-	Perspective() {
-		// dummary facet for cumCountChildIterator
-
-		// make sure exclusive cumCount == cumCount
-		totalCount = 0;
-	}
-
-	void setTotalCount(int count) {
-		// if ("Posters".equals(getNameIfPossible())) {
-		// Util.print("setTotalCount " + this + " " + totalCount + " => "
-		// + count);
-		// }
-		totalCount = count;
+		if (negated) {
+			index += 2;
+		}
+		if (markups == null) {
+			markups = new PerspectiveMarkupElement[4];
+		}
+		PerspectiveMarkupElement result = markups[index];
+		if (result == null) {
+			result = new PerspectiveMarkupElement(this, isPlural, negated);
+			markups[index] = result;
+		}
+		return result;
 	}
 
 	/**
-	 * Used to pass a redrawer into FacetNameComparator.
+	 * @return descriptionPreposition +/- patterns substituted with +/-
+	 *         restrictions, rendered as "+, +, or + (but not -, -, or -)".
 	 */
-	static PerspectiveObserver redrawer;
-
-	static final Perspective dummyCumCount = new Perspective();
-
-	/**
-	 * @param minCount
-	 * @param maxCount
-	 * @return Iterator over children c where: c.cumCount >= minCount &&
-	 *         c.cumCountExclusive <= maxCount
-	 */
-	public Iterator<Perspective> cumCountChildIterator(int minCount,
-			int maxCount) {
-		return instantiatedPerspective
-				.cumCountChildIterator(minCount, maxCount);
+	public @NonNull Markup getPhrase() {
+		return getMarkupElement().getPhraseFromRestrictions(getDescriptionPreposition(), getDescriptionCategory());
 	}
 
-	static class CumCountInclusiveComparator extends
-			IntValueComparator<Perspective> {
+	/**
+	 * Pattern into which facet name is substituted for '~'. Default is
+	 * implicitly [descriptionPreposition ~, NOT descriptionPreposition ~]. Used
+	 * to generate query description.
+	 */
+	public @NonNull DescriptionPreposition getDescriptionPreposition() {
+		return isInstantiated() ? instantiatedPerspective.descriptionPreposition
+				: Util.nonNull(parent).instantiatedPerspective.descriptionPreposition;
+	}
+
+	/**
+	 * OBJECT, META, or CONTENT. Used to generate query description.
+	 */
+	public @NonNull DescriptionCategory getDescriptionCategory() {
+		return isInstantiated() ? instantiatedPerspective.descriptionCategory
+				: Util.nonNull(parent).instantiatedPerspective.descriptionCategory;
+	}
+
+	public int nDescendentRestrictions() {
+		return getMarkupElement().descendentRestrictions().nRestrictions();
+	}
+
+	/*************************************************************************
+	 * End of Markup stuff
+	 *************************************************************************/
+
+	public void setTotalCount(final int count) {
+		query.setFacetTotalCount(this, count);
+	}
+
+	public @NonNull @Immutable List<Perspective> getChildrenRaw() {
+		return instantiatedPerspective.getChildrenRaw();
+	}
+
+	/**
+	 * Only called by MexPerspectives.merge()
+	 *
+	 * @param minChild
+	 * @param maxChild
+	 * @return all children in this range, inclusive
+	 */
+	public @NonNull List<Perspective> getChildren(final @NonNull Perspective minChild,
+			final @NonNull Perspective maxChild) {
+		return instantiatedPerspective.getChildrenRaw(minChild.whichChildRaw(), maxChild.whichChildRaw());
+	}
+
+	public static final @NonNull TotalCountDescendingComparator TOTAL_COUNT_DESCENDING_COMPARATOR = new TotalCountDescendingComparator();
+
+	static final class TotalCountDescendingComparator extends IntValueComparator<Perspective> {
 
 		@Override
-		public int value(Perspective data) {
-			// Util.print("value cum " + data + " "
-			// + ((Perspective) data).cumCount);
-			return -data.cumCount;
+		public int value(final Perspective data) {
+			return data.getTotalCount();
 		}
 	}
-
-	static final CumCountInclusiveComparator cumCountInclusiveComparator = new CumCountInclusiveComparator();
-
-	static class CumCountExclusiveComparator extends
-			IntValueComparator<Perspective> {
-
-		@Override
-		public int value(Perspective data) {
-			// Util.print("value cumExc " + data + " " + ((Perspective)
-			// data).cumCountExclusive());
-			return -data.cumCountExclusive();
-		}
-	}
-
-	static final CumCountExclusiveComparator cumCountExclusiveComparator = new CumCountExclusiveComparator();
-
-	// /**
-	// * Alphabetic comparison for facet names, except fail fast and return 0 if
-	// * name isn't cached. Caller is assuming that binarySearch will return
-	// * immediately if this Comparator returns 0.
-	// *
-	// */
-	// static class FacetNameComparator implements Comparator {
-	//
-	// public int compare(Object arg0, Object arg1) {
-	// int result = 0;
-	// String name0 = ((Perspective) arg0).getName(redrawer, null);
-	// if (name0 != null) {
-	// String name1 = ((Perspective) arg1).getName(redrawer, null);
-	// if (name1 != null)
-	// result = name0.compareToIgnoreCase(name1);
-	// }
-	// // Util.print("compare " + arg0 + " " + arg1 + " => " + result);
-	// return result;
-	// }
-	// }
-	//
-	// static final FacetNameComparator facetNameComparator = new
-	// FacetNameComparator();
-	//
-	// /**
-	// * @param prefix
-	// * @param letter
-	// * @param redraw
-	// * callback in the case of uncached names
-	// * @return first (alphabetically) Perspective starting with prefix
-	// followed
-	// * by letter, or any other Perspective if none exist, or null if we
-	// * don't know due to uncached facet names.
-	// */
-	// public Perspective firstWithLetter(String prefix, char letter,
-	// PerspectiveObserver redraw) {
-	// return instantiatedPerspective.firstWithLetter(prefix, letter, redraw);
-	// }
-	//
-	// /**
-	// * @param prefix
-	// * @param letter
-	// * @param redraw
-	// * callback in the case of uncached names
-	// * @return last (alphabetically) Perspective starting with prefix followed
-	// * by letter, or any other Perspective if none exist, or null if we
-	// * don't know due to uncached facet names.
-	// */
-	// public Perspective lastWithLetter(String prefix, char letter,
-	// PerspectiveObserver redraw) {
-	// return instantiatedPerspective.lastWithLetter(prefix, letter, redraw);
-	// }
 
 	/**
 	 * @return number of ancestor Perspectives. 0 means no parent.
@@ -272,124 +281,337 @@ public class Perspective implements ItemPredicate {
 	/**
 	 * @return ancestors (not including this perspective)
 	 */
-	public Set<Perspective> ancestors() {
+	public @NonNull Set<Perspective> ancestors() {
+		Set<Perspective> result;
 		if (parent != null) {
-			Set<Perspective> result = parent.ancestors();
+			result = parent.ancestors();
 			result.add(parent);
-			return result;
 		} else {
-			return new HashSet<Perspective>();
-		}
-	}
-
-	/**
-	 * @param leafs
-	 * @return leafs + their ancestors
-	 */
-	public static SortedSet<Perspective> ancestors(Set<Perspective> leafs) {
-		SortedSet<Perspective> result = new TreeSet<Perspective>(leafs);
-		for (Iterator<Perspective> it = leafs.iterator(); it.hasNext();) {
-			Perspective leaf = it.next();
-			result.addAll(leaf.ancestors());
+			result = new HashSet<>();
 		}
 		return result;
 	}
 
 	/**
-	 * @return the next more general Perspective, e.g. 2007 => 21st century
+	 * @return the next more general Perspective, e.g. 2007 ⇒ 21st century. For
+	 *         top level Perspectives, returns NULL rather than query!
 	 */
-	public Perspective getParent() {
+	public @Nullable Perspective getParent() {
 		return parent;
 	}
 
-	void setParent(Perspective _parent) {
-		if (query().isEditable())
-			parent = _parent;
-		else {
-			throw (new UnsupportedOperationException("Can't change parent of "
-					+ this));
-		}
+	public @NonNull ItemPredicate getParentOrQuery() {
+		return parent != null ? parent : query();
 	}
 
-	public Perspective previousSibling() {
-		return previousSibling(true);
+	public @Nullable Perspective getGrandParent() {
+		return parent != null ? Util.nonNull(parent).parent : null;
 	}
 
 	/**
-	 * @return preceding sibling in sort and/or alphabetical order, or null
+	 * @return is ancestor this perspective or an ancestor of this perspective?
 	 */
-	public Perspective previousSibling(boolean isErrorIfNotCached) {
-		Perspective result = null;
-		if (whichChild() > 0) {
-			result = isErrorIfNotCached ? query().findPerspective(facet_id - 1)
-					: query().findPerspectiveIfPossible(facet_id - 1);
-		}
-		return result;
+	public boolean hasAncestor(final @NonNull Perspective ancestor) {
+		return (ancestor == this) || (parent != null && parent.hasAncestor(ancestor));
 	}
 
-	public Perspective nextSibling() {
-		return nextSibling(true);
+	public boolean isUnderline() {
+		return getParent() != null;
 	}
 
 	/**
-	 * @return next sibling in sort and/or alphabetical order, or null
+	 * @return next sibling in sort order, or null if this is the last child.
+	 *
+	 *         There's no reason that next sibling can be findPerspective'd. Our
+	 *         only refence to it is facet_id + 1.
 	 */
-	public Perspective nextSibling(boolean isErrorIfNotCached) {
-		Perspective result = null;
-		if (whichChild() + 1 < nSiblings()) {
-			result = isErrorIfNotCached ? query().findPerspective(facet_id + 1)
-					: query().findPerspectiveIfPossible(facet_id + 1);
+	@Override
+	public @Nullable Perspective next() {
+		final int n = whichChildRaw() + 1;
+		if (parent != null) {
+			final @NonNull Perspective _parent = Util.nonNull(parent);
+			return n < _parent.nChildrenRaw() ? _parent.getRawNthChild(n) : null;
+		} else if (n < query.nPerspectivesRaw()) {
+			return query.findPerspectiveOrError(n);
+		} else {
+			return null;
 		}
-		return result;
 	}
 
+	@Override
 	/**
-	 * @return parent.nChildren() or if no parent query().nAttributes
+	 * @return previous Perspective, or null if this is the first child
 	 */
-	public int nSiblings() {
-		return parent != null ? parent.nChildren() : query().nAttributes;
+	public @Nullable Perspective previous() {
+		final int n = whichChildRaw() - 1;
+		if (n < 0) {
+			return null;
+		} else if (parent != null) {
+			return Util.nonNull(parent).getRawNthChild(n);
+		} else {
+			return query.findPerspectiveOrError(n);
+		}
 	}
 
 	public int getID() {
 		return facet_id;
 	}
 
-	public String getServerID() {
-		return Integer.toString(facet_id);
-	}
-
-	void setID(int _facet_id) {
-		if (query().isEditable())
-			facet_id = _facet_id;
-		else {
-			throw (new UnsupportedOperationException(
-					"Can't change facet_id of " + this));
-		}
+	public @NonNull String getServerID() {
+		final String result = Integer.toString(facet_id);
+		assert result != null;
+		return result;
 	}
 
 	/**
 	 * @return number of child facets
 	 */
-	public int nChildren() {
-		return instantiatedPerspective == null ? 0
-				: instantiatedPerspective.nChildren;
+	public int nChildrenRaw() {
+		return nChildrenRaw;
 	}
 
 	/**
 	 * @return do any of my child facets have non-zero total count?
 	 */
+	@Override
 	public boolean isEffectiveChildren() {
-		// if restrictData, all children might have zero count, in which case
-		// we wouldn't have any bars to draw.
-		// if it is -1, we don't know yet, so assume OK
-		// Util.print("isEffectiveChildren " + this + " " + nChildren() + " "
-		// + instantiatedPerspective.totalChildTotalCount);
-		return nChildren() > 0
-				&& instantiatedPerspective.totalChildTotalCount != 0;
+		return nEffectiveChildren() > 0;
 	}
 
-	int childrenOffset() {
+	/**
+	 * @return number of child facets with totalCount>0;
+	 */
+	int nEffectiveChildren() {
+		if (!query.isRestrictedData()) {
+			return nChildrenRaw();
+		} else if (getTotalChildTotalCount() == 0) {
+			return 0;
+		} else {
+			int result = 0;
+			for (final Perspective child : getChildrenRaw()) {
+				if (child != null && child.getTotalCount() > 0) {
+					result++;
+				}
+			}
+			return result;
+		}
+	}
+
+	private int getChildrenOffset() {
 		return instantiatedPerspective.children_offset;
+	}
+
+	/**
+	 * Called from thread prefetcher.
+	 */
+	public @NonNull FetchType getFetchType() {
+		assert nChildrenRaw() > 0 : this
+				+ " doesn't have any tags. You should give it a negative value for sort in the raw_facet_types table.";
+
+		FetchType fetchType = FetchType.PREFETCH_FACET_WITH_NAME;
+		if (query().isRestrictedData()) {
+			// The database treats this case specially, but
+			// initAfterPrefetch() resets it via
+			// ensureFetchTypeForUnrestrictedData().
+			fetchType = fetchTypeForRestrictedData(fetchType);
+		} else if (parent == null) {
+			fetchType = FetchType.PREFETCH_FACET_TYPE_WITH_NAME;
+		}
+		if (nChildrenRaw() > BungeeConstants.PREFETCH_NAMES_MAX_CHILDREN) {
+			fetchType = fetchTypeForManyChildren(fetchType);
+		}
+		return fetchType;
+	}
+
+	/**
+	 * Add FETCH_TYPE_INCREMENT_FOR_MANY_CHILDREN
+	 */
+	private static @NonNull FetchType fetchTypeForManyChildren(final @NonNull FetchType fetchTypeForFewChildren) {
+		assert fetchTypeForFewChildren.isName() : fetchTypeForFewChildren;
+		final FetchType result = FetchType.values()[fetchTypeForFewChildren.ordinal()
+				+ FETCH_TYPE_INCREMENT_FOR_MANY_CHILDREN];
+		assert result != null;
+		return result;
+	}
+
+	/**
+	 * Subtract FETCH_TYPE_INCREMENT_FOR_MANY_CHILDREN
+	 */
+	private static @NonNull FetchType fetchTypeForFewChildren(final @NonNull FetchType fetchTypeForManyChildren) {
+		assert !fetchTypeForManyChildren.isName() : fetchTypeForManyChildren;
+		final FetchType result = FetchType.values()[fetchTypeForManyChildren.ordinal()
+				- FETCH_TYPE_INCREMENT_FOR_MANY_CHILDREN];
+		assert result != null;
+		return result;
+	}
+
+	/**
+	 * Add FETCH_TYPE_INCREMENT_FOR_RESTRICTED_DATA
+	 */
+	private static @NonNull FetchType fetchTypeForRestrictedData(
+			final @NonNull FetchType fetchTypeForUnrestrictedData) {
+		final int ordinal = fetchTypeForUnrestrictedData.ordinal();
+		assert ordinal < FETCH_TYPE_INCREMENT_FOR_RESTRICTED_DATA : ordinal;
+		final FetchType result = FetchType.values()[ordinal + FETCH_TYPE_INCREMENT_FOR_RESTRICTED_DATA];
+		assert result != null;
+		return result;
+	}
+
+	/**
+	 * If query.isRestricted() subtract
+	 * FETCH_TYPE_INCREMENT_FOR_RESTRICTED_DATA.
+	 */
+	static @NonNull public FetchType ensureFetchTypeForUnrestrictedData(final @NonNull FetchType fetchType) {
+		FetchType result = fetchType;
+		final int ordinal = fetchType.ordinal();
+		if (ordinal >= FETCH_TYPE_INCREMENT_FOR_RESTRICTED_DATA) {
+			result = FetchType.values()[ordinal - FETCH_TYPE_INCREMENT_FOR_RESTRICTED_DATA];
+		}
+		assert result != null;
+		return result;
+	}
+
+	/**
+	 * Only called by Query.prefetch()
+	 */
+	public void initAfterPrefetch(final @NonNull ResultSet parentRS, final @NonNull ResultSet childRS,
+			final @NonNull FetchType fetchType) throws SQLException {
+		parentRS.next();
+		final int childrenOffset = parentRS.getInt("first_child_offset");
+
+		// testing
+		assert childrenOffset < 0 || getChildrenOffset() == childrenOffset : path(true, true) + " "
+				+ getChildrenOffset() + " " + childrenOffset + "\n" + MyResultSet.valueOfDeep(parentRS);
+
+		setChildrenOffset(childrenOffset);
+		setIsAlphabetic(UtilMath.isBit(parentRS.getInt("is_alphabetic"), 0));
+
+		final boolean isName = fetchType.isName();
+		if (nChildrenRaw > 0) {
+			int child_cumTotalCount = 0;
+			int maxCount = -1;
+			for (int childID = childrenOffset + 1; childID <= childrenOffset + nChildrenRaw; childID++) {
+				childRS.next();
+				final int childNChildren = childRS.getInt("n_child_facets");
+				final int childChildrenOffset = childRS.getInt("first_child_offset");
+				final String childName = isName ? childRS.getString("name") : null;
+				final Perspective child = ensureChild(childID, childName, childChildrenOffset, childNChildren);
+				final int childTotalCount = child.getTotalCount();
+				child_cumTotalCount += childTotalCount;
+				child.cumTotalCount = child_cumTotalCount;
+				maxCount = Math.max(childTotalCount, maxCount);
+			}
+			assert !getChildrenRaw().contains(null) : this;
+			setTotalChildTotalCount(child_cumTotalCount);
+			setMaxChildTotalCount(maxCount);
+		}
+		assert isInstantiated() == nChildrenRaw > 0 : this + " " + nChildrenRaw;
+		setPrefetchedStatus(isName ? PrefetchStatus.PREFETCHED_YES : PrefetchStatus.PREFETCHED_NO_NAMES);
+	}
+
+	public void setPrefetchedStatus(final @NonNull PrefetchStatus status) {
+		if (isInstantiated()) {
+			instantiatedPerspective.prefetched = status;
+		} else {
+			assert status == PrefetchStatus.PREFETCHED_NO;
+		}
+	}
+
+	public @NonNull Perspective ensureChild(final int childID, final @Nullable String childName,
+			final int child_children_offset, final int child_n_children) {
+		assert childID > facet_id : childID;
+		assert child_n_children >= 0 : child_n_children;
+		assert child_children_offset >= 0 : child_children_offset;
+		Perspective child = query().findPerspectiveIfCached(childID);
+
+		if (child == null) {
+			child = new Perspective(childID, this, childName, child_children_offset, child_n_children);
+			addChildFacet(child);
+		} else {
+			if (childName != null) {
+				child.setName(childName);
+			}
+			if (child_n_children >= 0) {
+				child.setNchildren(child_n_children, child_children_offset);
+			}
+		}
+		assert assertIsChild(child);
+		return child;
+	}
+
+	public boolean isPrefetchedToDefaultLevel() {
+		return isPrefetched(prefetchedStatusFromFetchType(getFetchType()));
+	}
+
+	/**
+	 * @return PREFETCHED_NO_NAMES or PREFETCHED_YES: what prefetchStatus()
+	 *         would return after prefetching with fetchType.
+	 */
+	public static @NonNull PrefetchStatus prefetchedStatusFromFetchType(final @NonNull FetchType fetchType) {
+		return fetchType.isName() ? PrefetchStatus.PREFETCHED_YES : PrefetchStatus.PREFETCHED_NO_NAMES;
+	}
+
+	/**
+	 * @return whether this is already prefetched to level. If not, but
+	 *         isDisplayed(), calls queuePrefetch.
+	 */
+	public boolean ensurePrefetched(final @NonNull PrefetchStatus level, final @Nullable RedrawCallback callback) {
+		// final @NonNull PrefetchStatus level = PrefetchStatus.PREFETCHED_YES;
+		final boolean result = isPrefetched(level);
+		if (!result && isDisplayed()) {
+			query.queuePrefetch(this, getPrefetchTypeForLevel(level), callback);
+		}
+		return result;
+	}
+
+	/**
+	 * @return whether prefetchStatus >= level
+	 */
+	public boolean isPrefetched(final @NonNull PrefetchStatus level) {
+		assert level == PrefetchStatus.PREFETCHED_NO_NAMES || level == PrefetchStatus.PREFETCHED_YES;
+		return prefetchStatus().compareTo(level) >= 0;
+	}
+
+	private @NonNull FetchType getPrefetchTypeForLevel(final @NonNull PrefetchStatus level) {
+		FetchType fetchType = getFetchType();
+
+		// If ensurePrefetched() is explicitly asked for
+		// PrefetchStatus.PREFETCHED_YES, override default getFetchType()
+		if (level == PrefetchStatus.PREFETCHED_YES && nChildrenRaw() > BungeeConstants.PREFETCH_NAMES_MAX_CHILDREN) {
+			// Undo the fetchTypeForManyChildren() call in getFetchType()
+			fetchType = fetchTypeForFewChildren(fetchType);
+		}
+		return fetchType;
+	}
+
+	public boolean isInstantiated() {
+		return instantiatedPerspective != null;
+	}
+
+	public boolean needsChildrenOffset() {
+		return nChildrenRaw() > 0 && (!isInstantiated() || getChildrenOffset() < 0);
+	}
+
+	/**
+	 * Called by restrictData() and when editing.
+	 *
+	 * Children may be changing, so invalidate lettersOffsetsMap.
+	 */
+	public void decacheLettersOffsets() {
+		if (isInstantiated()) {
+			instantiatedPerspective.decacheLettersOffsets();
+		}
+	}
+
+	/**
+	 * @return whether there is a row of bars for this Perspective's children.
+	 */
+	public boolean isDisplayed() {
+		return instantiatedPerspective != null && instantiatedPerspective.isDisplayed;
+	}
+
+	public void setIsDisplayed(final boolean isDisplayed) {
+		instantiatedPerspective.isDisplayed = isDisplayed;
 	}
 
 	/**
@@ -397,355 +619,111 @@ public class Perspective implements ItemPredicate {
 	 *         will only zoom by prefixes if so.
 	 */
 	public boolean isAlphabetic() {
-		boolean result = instantiatedPerspective.isAlphabetic;
-		// assert result == checkAlphabetic() : this + " " + result;
-		return result;
-	}
-
-	boolean checkAlphabetic() {
-		boolean result = true;
-		String prev = "";
-		for (Iterator<Perspective> it = getChildIterator(); it.hasNext()
-				&& result;) {
-			Perspective child = it.next();
-			String name = child.getNameIfPossible();
-			if (name != null) {
-				if (name.compareToIgnoreCase(prev) < 0) {
-					// Util.print(prev + " >>> " + name);
-					result = false;
-				}
-				prev = name;
-			}
-		}
-		return result;
-	}
-
-	/**
-	 * Can be called from thread prefetcher. Cannot be called recursively.
-	 * 
-	 */
-	public void prefetchData() {
-		if (!isPrefetched()) {
-			assert nChildren() > 0 : this
-					+ " doesn't have any tags. You should give it a negative value for sort in the raw_facet_types table.";
-			synchronized (this) {
-				if (!isPrefetched()) {
-					ensureInstantiatedPerspective();
-
-					int fetchType = 1;
-					if (query().isRestrictedData())
-						// The database treats this case specially, but it is
-						// treated as 1 in initPerspective
-						fetchType = 5;
-					else if (instantiatedPerspective.totalChildTotalCount > 0)
-						// This indicates that we've already retrieved the
-						// counts, which can only be true for top-level tags
-						fetchType = 3;
-					if (nChildren() > 100)
-						fetchType += 1;
-
-					query().prefetch(this, fetchType);
-
-					setPrefetched(true);
-					notifyAll();
-				}
-			}
+		if (isInstantiated()) {
+			return instantiatedPerspective.isAlphabetic;
+		} else {
+			assert parent != null;
+			return parent.isAlphabetic();
 		}
 	}
 
-	void initPerspective(DataInputStream in, int fetchType) {
-		if (fetchType > 4)
-			fetchType -= 4;
-		setChildrenOffset(MyResultSet.readInt(in));
-		initPerspective(new MyResultSet(in, prefetchColumnTypes(fetchType)),
-				fetchType);
-		setIsAlphabetic(MyResultSet.readInt(in) > 0);
-		// if (isAlphabetic()) {
-		// createLetterOffsets(new MyResultSet(in, MyResultSet.STRING_SINT),
-		// Util.toCollationKey(""));
-		// }
-		// Util.print("offset " + facet + " " + facet.childrenOffset() + " "
-		// + facet.isAlphabetic());
-	}
-
-	static List<Object> prefetchColumnTypes(int fetchType) {
-		List<Object> types = null;
-		switch (fetchType) {
-		case 1:
-			types = MyResultSet.INT_INT_STRING;
-			break;
-		case 2:
-			types = MyResultSet.INT_INT;
-			break;
-		case 3:
-			types = MyResultSet.INT_STRING;
-			break;
-		case 4:
-			types = MyResultSet.INT;
-			break;
-		default:
-			assert false : "prefetch args=" + fetchType;
-		}
-		return types;
-	}
-
-	// cases:
-	// 0: initFacetTypes: count
-	// 1: prefetch a new facet: count, nChildren, name
-	// 2: prefetch a new facet: count, nChildren
-	// 3: prefetch a top-level facet (count is already set): nChildren, name
-	// 4: prefetch a top-level facet (count is already set): nChildren
-	void initPerspective(ResultSet rs, int fetchType) {
-		assert isInstantiated();
-		try {
-			boolean isCount = fetchType <= 2;
-			boolean isName = fetchType == 1 || fetchType == 3;
-			boolean isNchildren = fetchType > 0;
-			// Map cHist = new TreeMap();
-			// Map offHist = new TreeMap();
-			// Map ncHist = new TreeMap();
-
-			// Util.print("Query.initPerspective isName=" + isName + " isCount="
-			// + isCount + " isOffset=" + isOffset + " " + p
-			// + " nChildren=" + p.nChildren() + " childrenOffset="
-			// + p.children_offset());
-
-			int child_facet_id = childrenOffset();
-			int nRemainingChildren = nChildren();
-			int child_cumCount = 0;
-			int maxCount = -1;
-			int count = -1;
-			String name1 = null;
-			while (--nRemainingChildren >= 0) {
-				rs.next();
-				Perspective v;
-				if (isNchildren) {
-					int fieldOffset = isCount ? 1 : 0;
-					// int childrenOffset = rs.getInt(fieldOffset + 2);
-					int nChildren = rs.getInt(fieldOffset + 1);
-					if (isName)
-						name1 = rs.getString(fieldOffset + 2);
-
-					// offset is set in v.initPerspective(stream, fetchType)
-					v = ensureChild(++child_facet_id, name1, nChildren);
-
-					// incf(offHist, childrenOffset);
-					// incf(ncHist, nChildren);
-
-					// if (v.nChildren > 0 && nameGetter != null) {
-					// nameGetter.addFacet(v);
-					// }
-					// if (isCount)
-					// count = rs.getInt(1);
-				} else {
-					assert isCount;
-					// count = rs.getInt(1);
-					v = ensureChild(++child_facet_id, null, 0);
-				}
-				if (isCount) {
-					count = rs.getInt(1);
-					// incf(cHist, count);
-
-					assert count > 0 || query().isRestrictedData() : this + " "
-							+ v + " " + count;
-					// Need to DELETE FROM facet WHERE count = 0
-					child_cumCount += count;
-					// v.onCount = count;
-					if (count > maxCount) {
-						// Util
-						// .print("initPerspective setting max child count to "
-						// + count + " (" + v + ")");
-						maxCount = count;
-					}
-					// Util.print("Setting " + v + " totalCount=" + count);
-					v.setTotalCount(count);
-					v.cumCount = child_cumCount;
-				}
-			}
-
-			// showHist(cHist, "Counts:");
-			// showHist(offHist, "Offsets:");
-			// showHist(ncHist, "nChilds:");
-			if (isCount) {
-				setTotalChildTotalCount(child_cumCount);
-				setMaxChildTotalCount(maxCount);
-				// if (p.parent != null) {
-				// // For a new facet, any other displayed siblings have to
-				// // make room.
-				// p.parent.updateChildPercents();
-				// }
-			}
-			// assert p.isDataIndexByOnComplete();
-			rs.close();
-		} catch (SQLException se) {
-			Util.err("SQL Exception in perspective.updateData: "
-					+ se.getMessage());
-			se.printStackTrace();
+	public void setIsAlphabetic(final boolean _isAlphabetic) {
+		if (isInstantiated()) {
+			instantiatedPerspective.isAlphabetic = _isAlphabetic;
+		} else {
+			assert parent != null && parent.isAlphabetic() == _isAlphabetic;
 		}
 	}
 
-	Perspective ensureChild(int child_facet_id, String child_name,
-			int child_nChildren) {
-		return query().ensurePerspective(child_facet_id, this, child_name, -1,
-				child_nChildren);
+	/**
+	 * @return does this Perspective have a natural ordering (like Date or
+	 *         Rating)?
+	 */
+	public boolean isOrdered() {
+		if (isInstantiated()) {
+			return instantiatedPerspective.isOrdered;
+		} else {
+			assert parent != null;
+			return parent.isOrdered();
+		}
 	}
 
-	void setPrefetched(boolean state) {
-		instantiatedPerspective.isPrefetched = state;
+	public @NonNull PrefetchStatus prefetchStatus() {
+		return isInstantiated() ? instantiatedPerspective.prefetched : PrefetchStatus.PREFETCHED_NO;
 	}
 
 	/**
-	 * @return whether our children have been created
+	 * Only called when editing.
 	 */
-	public boolean isPrefetched() {
-		return instantiatedPerspective != null
-				&& instantiatedPerspective.isPrefetched;
-	}
-
-	boolean isInstantiated() {
-		return instantiatedPerspective != null;
+	public void resetForNewData() {
+		instantiatedPerspective.resetChildrensOnCounts();
+		setOnCount(0);
 	}
 
 	/**
-	 * @return whether there should be a row of bars for this perspective
-	 */
-	public boolean isDisplayed() {
-		return query().displaysPerspective(this);
-	}
-
-	// void setParentPercent(double percent) {
-	// if (instantiatedPerspective != null)
-	// // This can be null if GetPerspectiveNames runs at the wrong time.
-	// instantiatedPerspective.parentPercent = percent;
-	// }
-	//
-	// void updateChildPercents() {
-	// int total = 0;
-	//
-	// for (Iterator it = getQuery().perspectivesIterator(); it.hasNext();) {
-	// Perspective child = (Perspective) it.next();
-	// if (child.parent == this) {
-	// total += child.totalCount;
-	// }
-	// }
-	// if (total > 0) {
-	// double dTotal = total;
-	//
-	// for (Iterator it = getQuery().perspectivesIterator(); it.hasNext();) {
-	// Perspective child = (Perspective) it.next();
-	// if (child.parent == this) {
-	// child.setParentPercent(child.totalCount / dTotal);
-	// }
-	// }
-	// }
-	// }
-
-	public int guessOnCount() {
-		if (query().isQueryValid())
-			return getOnCount();
-		else
-			return getTotalCount();
-	}
-
-	/**
-	 * query() is surprisingly slow, so when it matters don't keep recomputing
-	 * it.
-	 * 
-	 * @param isQueryRestricted
-	 * @return onCount
-	 */
-	public int getOnCount(boolean isQueryRestricted) {
-		return isQueryRestricted ? onCount : totalCount;
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#getOnCount()
+	 * @return always >= 0
 	 */
 	public int getOnCount() {
-		Query query = query();
-		assert query.isQueryValid();
-		int onCount2 = getOnCount(query.isRestricted());
-		// assert onCount2 <= getTotalCount() : onCount2 + " " + getTotalCount()
-		// + " " + this;
-		return onCount2;
+		return query.getFacetOnCount(this);
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#getTotalCount()
-	 */
-	public int getTotalCount() {
-		// deeply nested facets will have totalCount = -1;
-		// Util.print("getTotalCount " + this + " " + totalCount);
-		// if (totalCount < 0) {
-		// assert false : this;
-		// assert parent == null;
-		// totalCount = getTotalChildTotalCount();
-		// }
-		Query q = query();
-		if (!q.isRestrictedData() || parent == null
-				|| q.displaysPerspective(parent)) {
-			// Util.print("getTotalCount "+this+" "+totalCount);
-			return totalCount;
-		} else {
-			// assert false : this;
-			return -1;
-		}
+	public void setOnCount(final int onCount) {
+		query.setFacetOnCount(this, onCount);
 	}
 
 	/**
-	 * @return standard deviation of this binary variable, over the whole
-	 *         database
+	 * @return onCount of parent, or if isTopLevel() query().getOnCount().
+	 *         always >= 0
 	 */
-	public double stdDev() {
-		double n = query().getTotalCount();
-		double count = getTotalCount();
-		double stdDev = Math.sqrt(count * (n - count) / (n * (n - 1)));
-		assert stdDev >= 0 : count + " " + n + " " + this;
-		return stdDev;
-	}
-
-	public int parentTotalCount() {
-		if (parent == null)
-			return query().getTotalCount();
-		else
-			return parent.getTotalCount();
-	}
-
 	public int parentOnCount() {
-		if (parent == null)
-			return query().getOnCount();
-		else
-			return parent.getOnCount();
+		return parent != null ? parent.getOnCount() : query().getOnCount();
+	}
+
+	/**
+	 * @return totalCount of parent, or if isTopLevel() query().getTotalCount().
+	 *         always >= 0
+	 */
+	public int parentTotalCount() {
+		int result;
+		if (parent == null) {
+			result = query().getTotalCount();
+		} else {
+			assert parent != null;
+			result = parent.getTotalCount();
+		}
+		return result;
+	}
+
+	/**
+	 * @return always >= 0
+	 */
+	@Override
+	public int getTotalCount() {
+		return query.getFacetTotalCount(this);
 	}
 
 	/**
 	 * @return The SUM of the totalCounts for us and our previous siblings. Used
-	 *         for placing bars.
+	 *         for placing bars. always >= 0
 	 */
-	public int cumCountInclusive() {
-		return cumCount;
+	public int cumTotalCountInclusive() {
+		return cumTotalCount;
 	}
 
 	/**
-	 * @return The SUM of the totalCounts for our previous siblings. Used for
-	 *         placing bars.
+	 * @return The SUM of the totalCounts for our previous siblings. This
+	 *         Perspective's first item, if any, would be 1 greater. Used for
+	 *         placing bars. always >= 0
 	 */
-	public int cumCountExclusive() {
-		return cumCount - totalCount;
+	public int cumTotalCountExclusive() {
+		return cumTotalCount - getTotalCount();
 	}
 
 	/**
 	 * @return index between 0 and nChildren-1
 	 */
-	public int whichChild() {
-		int result = getID() - 1;
-		if (parent != null)
-			result -= parent.childrenOffset();
-		return result;
+	public int whichChildRaw() {
+		return whichChildRaw;
 	}
 
 	/**
@@ -754,122 +732,127 @@ public class Perspective implements ItemPredicate {
 	 *            1)
 	 * @return the nth child facet
 	 */
-	public Perspective getNthChild(int n) {
-		return instantiatedPerspective.getNthChild(n);
+	public @NonNull Perspective getRawNthChild(final int n) {
+		return instantiatedPerspective.getRawNthChild(n);
 	}
 
 	/**
-	 * @return an iteraor over our child facets
+	 * @return the largest totalCount of any of our child facets, or -1 if there
+	 *         are no children.
 	 */
-	public Iterator<Perspective> getChildIterator() {
-		return instantiatedPerspective.getChildIterator();
+	public int getMaxChildTotalCount() {
+		int result = -1;
+		if (nChildrenRaw() > 0) {
+			result = instantiatedPerspective.getMaxChildTotalCount();
+		}
+		return result;
 	}
 
-	/**
-	 * @param min
-	 *            first child returned
-	 * @param max
-	 *            last child returned
-	 * @return an iteraor over some of our child facets (used to iterate over
-	 *         visible bars)
-	 */
-	public Iterator<Perspective> getChildIterator(Perspective min,
-			Perspective max) {
-		return instantiatedPerspective.getChildIterator(min, max);
+	public void setMaxChildTotalCount(final int maxCount) {
+		instantiatedPerspective.setMaxChildTotalCount(maxCount);
 	}
 
 	/**
 	 * Can be called from thread prefetcher
-	 * 
+	 *
 	 * @return the sum of the totalCount of our children. May differ from
 	 *         totalCount because an item can have multiple sibling facets,
-	 *         and/or may have this facet but not any of our children. -1 if we
-	 *         haven't been initPerspective'd.
+	 *         and/or may have this facet but not any of our children.
+	 *
+	 *         always >= 0
 	 */
 	public int getTotalChildTotalCount() {
-		// getQuery().prefetchData(this);
-		assert instantiatedPerspective.totalChildTotalCount >= 0 : this;
-		return instantiatedPerspective.totalChildTotalCount;
+		return (nChildrenRaw() > 0) ? instantiatedPerspective.getTotalChildTotalCount() : 0;
 	}
 
-	void setTotalChildTotalCount(int cnt) {
-		// Util.print("setTotalChildTotalCount " + this + " " + cnt);
-		assert cnt >= 0 : this + " " + query() + " "
-				+ query().displayedPerspectives();
-		instantiatedPerspective.totalChildTotalCount = cnt;
-		if (cnt == 0 && getParent() != null) {
-			// Uh-oh. In the unrestricted database we have children, but in the
-			// restricted one they all have zero count. We didn't know that
-			// ahead of time, and added a pv. Oh well, viz can notice this and
-			// remove it again, via PV.updateData(). Can't do it in
-			// this thread or you'd get concurrent modification on
-			// displayedPerspectives.
-			// Util.print("zero totalChildTotalCount for " + this + " " +
-			// query());
-			// parent.deselectFacet(this, true);
-		}
+	public int getTotalChildOnCount() {
+		return instantiatedPerspective.getTotalChildOnCount();
 	}
 
-	/**
-	 * @return the p-value that the conditional median is different from the
-	 *         unconditional median.
-	 */
-	public double medianTest() {
-		return instantiatedPerspective.medianPvalue();
-	}
-
-	/**
-	 * @return is this facet's median significantly different from its parent's
-	 *         median?
-	 */
-	public int medianTestSignificant() {
-		double pValue = instantiatedPerspective.medianPvalue();
-		double threshold = 0.01 / query().nOrderedAttributes();
-		int result = 0;
-		if (pValue <= threshold)
-			result = instantiatedPerspective.medianPvalueSign();
-		return result;
+	private void setTotalChildTotalCount(final int cnt) {
+		assert cnt >= 0 : this + " " + query() + " cnt=" + cnt;
+		instantiatedPerspective.setTotalChildTotalCount(cnt);
 	}
 
 	/**
 	 * @param isConditional
 	 *            want median according to onCount or totalCount
+	 *
 	 * @return the whichChild (between 0 and nChildren-1] of the median + the
 	 *         fraction of the median below the halfway point, when you lay out
-	 *         count copies of all the child facets. Returns -1 if no items
-	 *         satisfy this predicate.
+	 *         count copies of all the child facets. Returns -1.0 if query is
+	 *         invalid or no items satisfy this predicate. (Return
+	 *         %whichChild%.0 if count==1).
 	 */
-	public double median(boolean isConditional) {
-		return instantiatedPerspective.median(isConditional);
-	}
-
-	/**
-	 * @param isConditional
-	 *            Want median according to onCount or totalCount?
-	 * @return The median child facet.
-	 */
-	public Perspective getMedianPerspective(boolean isConditional) {
-		Perspective medianChild = null;
-		if (query().isQueryValid() && getOnCount() > 0) {
-			double median = median(isConditional);
-			int medianIndex = (int) median;
-			medianChild = getNthChild(medianIndex);
-		}
-		return medianChild;
+	public double medianWhichChild(final boolean isConditional) {
+		return instantiatedPerspective.medianWhichChild(isConditional);
 	}
 
 	/**
 	 * @return spaces to indent according to this perspective's ancestor depth,
-	 *         followed by a symbol if this perspective has a parent.
+	 *         followed by a right arrow if this perspective has a parent.
 	 */
-	public String namePrefix() {
-		String result = "";
-		int level = depth();
-		for (int i = 1; i < level; i++)
-			result += "  ";
-		if (level > 0)
-			result += Markup.parentIndicatorPrefix;
-		// Util.print("namePrefix " + this + " '" + result + "'");
+	public @NonNull String namePrefix() {
+		return namePrefix(depth());
+	}
+
+	/**
+	 * @return spaces to indent according to this perspective's ancestor depth,
+	 *         followed by a right arrow if this perspective has a parent.
+	 */
+	private static @NonNull String namePrefix(final int depth) {
+		return depth > 0 ? UtilString.getSpaces(2 * (depth - 1)) + BungeeConstants.PARENT_INDICATOR_PREFIX : "";
+	}
+
+	/**
+	 * @return cached name or "ID=67"
+	 */
+	@Override
+	public @NonNull String getName() {
+		return getName(null);
+	}
+
+	/**
+	 * @return cached name or "ID=67" and call callback
+	 */
+	@Override
+	public @NonNull String getName(final @Nullable RedrawCallback callback) {
+		String pName = callback != null ? getNameOrDefaultAndCallback(null, callback) : getNameIfCached();
+		if (pName == null) {
+			// Default to null above, and only compute default if necessary
+			pName = "ID=" + getID();
+		}
+		return pName;
+	}
+
+	public String nameNid() {
+		return getName() + " (" + getID() + ")";
+	}
+
+	/**
+	 * @param callback
+	 *            If name hasn't been read from the database, call callback when
+	 *            it is.
+	 * @return the name of this facet, or defaultName if it hasn't been read
+	 *         yet.
+	 */
+	public @Nullable String getNameOrDefaultAndCallback(final String defaultName,
+			final @NonNull RedrawCallback callback) {
+		String result = getNameIfCached();
+		if (result == null) {
+			query.queueGetName(this, callback);
+			result = defaultName;
+		}
+		return result;
+	}
+
+	public @NonNull String getNameNow() {
+		String result = getNameIfCached();
+		if (result == null) {
+			query().getNamesNow(UtilArray.getUnmodifiableList(this));
+			result = getNameIfCached();
+		}
+		assert result != null;
 		return result;
 	}
 
@@ -877,50 +860,8 @@ public class Perspective implements ItemPredicate {
 	 * @return this facet's name, or null if it hasn't been read from the
 	 *         database yet
 	 */
-	public String getNameIfPossible() {
-		return instantiatedPerspective == null ? null
-				: instantiatedPerspective.name;
-	}
-
-	public String getName(PerspectiveObserver redraw) {
-		return getName(redraw, "?");
-	}
-
-	/**
-	 * @param redraw
-	 *            if name hasn't been read from the database, callback redraw
-	 *            when it is
-	 * @param defaultName
-	 * @return the name of this facet, or defaultName if it hasn't been read yet
-	 */
-	public String getName(PerspectiveObserver redraw, String defaultName) {
-		String result = getNameIfPossible();
-		if (result != null) {
-			return result;
-		}
-		assert redraw != null : this;
-		Query q = query();
-
-		// Why did we do this?
-		// if (!parent.isPrefetched()) {
-		// q.queuePrefetch(getParent());
-		// }
-
-		NameGetter nameGetter = q.nameGetter;
-		assert nameGetter != null : q;
-		nameGetter.add(this);
-		nameGetter.add(redraw);
-		// Util.print("getName " + parent.isPrefetched() + " " + this);
-		return defaultName;
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#getName()
-	 */
-	public String getName() {
-		return getName(null);
+	public String getNameIfCached() {
+		return name;
 	}
 
 	/**
@@ -928,313 +869,244 @@ public class Perspective implements ItemPredicate {
 	 *            either we just read the name from the database, or we're
 	 *            editing and changing the name for this facet
 	 */
-	public void setName(String _name) {
-		if (_name != null)
-			ensureInstantiatedPerspective().name = _name;
-	}
-
-	void setChildrenOffset(int offset) {
-		if (nChildren() > 0) {
-			// Util.print("setChildrenOffset " + this + " " + offset);
-			ensureInstantiatedPerspective().children_offset = offset;
-		}
-	}
-
-	void setIsAlphabetic(boolean _isAlphabetic) {
-		instantiatedPerspective.isAlphabetic = _isAlphabetic;
+	public void setName(final @NonNull String _name) {
+		assert name == null || name.equals(_name) : name + " " + _name;
+		name = _name;
 	}
 
 	/**
 	 * @param prefix
-	 * @return Iterator over getLetterOffsets(prefix)
+	 * @return Child with lowest facet_id whose name begins with prefix, or null
+	 *         if none exist.
 	 */
-	public Iterator<Entry<CollationKey, Perspective[]>> letterOffsetsIterator(
-			CollationKey prefix) {
-		return getLetterOffsets(prefix).entrySet().iterator();
+	public @Nullable Perspective firstWithPrefix(final @NonNull String prefix, final @Nullable RedrawCallback redraw) {
+		final Interval<Perspective> rangeForPrefix = rangeForPrefix(prefix, redraw);
+		final Perspective lowerEndpoint = rangeForPrefix != null ? rangeForPrefix.getLowerEndpoint() : null;
+		return lowerEndpoint;
 	}
 
 	/**
-	 * @param prefix
-	 * @return Perspective with lowest facet_id whose name begins with prefix,
-	 *         or null if none exist.
+	 * @return [first, last] Perspectives whose names begin with prefix. null
+	 *         means redraw will be called when it is computed (only applicable
+	 *         if redraw != null).
 	 */
-	// public Perspective firstWithPrefix(String prefix) {
-	// int charIndex = prefix.length();
-	// if (charIndex == 0) {
-	// return getNthChild(0);
-	// }
-	// String prefixButOne = prefix.substring(0, charIndex - 1);
-	// char desiredLetter = prefix.charAt(charIndex - 1);
-	// Perspective firstWithLetter = null;
-	// for (Iterator it = letterOffsetsIterator(prefixButOne); it.hasNext();) {
-	// Entry entry = (Entry) it.next();
-	// char letter = ((Character) entry.getKey()).charValue();
-	// Perspective lastWithLetter = (Perspective) entry.getValue();
-	// Util.print("fwl " + desiredLetter + " " + letter + " "
-	// + firstWithLetter);
-	// if (letter == desiredLetter) {
-	// if (firstWithLetter == null)
-	// firstWithLetter = firstWithPrefix(prefixButOne);
-	// // Util.print("firstWithPrefix " + prefix + " => " +
-	// // firstWithLetter);
-	// return firstWithLetter;
-	// } else if (letter > desiredLetter)
-	// return null;
-	// firstWithLetter = lastWithLetter.nextSibling();
-	// }
-	// return null;
-	// }
-	public Perspective firstWithPrefix(CollationKey prefix) {
-		String sourceString = prefix.getSourceString();
-		int charIndex = sourceString.length();
-		if (charIndex > 0) {
-			Perspective[] rangeForPrefix = rangeForPrefix(prefix);
-			return rangeForPrefix == null ? null : rangeForPrefix[0];
+	public @Nullable Interval<Perspective> rangeForPrefix(final @NonNull String prefix,
+			final @Nullable RedrawCallback redraw) {
+		assert prefix.equals(prefix.toLowerCase()) : prefix;
+		Interval<Perspective> result = null;
+		if (prefix.length() == 0) {
+			result = GenericInterval.getClosedGenericInterval(getRawNthChild(0), getRawNthChild(nChildrenRaw() - 1));
 		} else {
-			return getNthChild(0);
-		}
-	}
-
-	/**
-	 * @param prefix
-	 * @return Perspective with highest facet_id whose name begins with prefix,
-	 *         or null if none exist.
-	 */
-	public Perspective lastWithPrefix(CollationKey prefix) {
-		String sourceString = prefix.getSourceString();
-		int charIndex = sourceString.length();
-		if (charIndex > 0) {
-			Perspective[] rangeForPrefix = rangeForPrefix(prefix);
-			return rangeForPrefix == null ? null : rangeForPrefix[1];
-		} else {
-			return getNthChild(nChildren() - 1);
-		}
-	}
-
-	public Perspective[] rangeForPrefix(CollationKey prefix) {
-		// prefix = Util.toCollationKey(prefix.getSourceString().toUpperCase());
-		// Util.print("lastWithPrefix " + prefix);
-		String sourceString = prefix.getSourceString();
-		int charIndex = sourceString.length();
-		// if (charIndex == 0) {
-		// return getNthChild(nChildren() - 1);
-		// }
-		CollationKey prefixButOne = Util.toCollationKey(sourceString.substring(
-				0, charIndex - 1));
-		CollationKey desiredLetter = Util.toCollationKey(sourceString
-				.substring(charIndex - 1));
-		// Util.print("rangeForPrefix '"
-		// + prefixButOne.getSourceString()
-		// + "' "
-		// + desiredLetter.getSourceString()
-		// + " "
-		// + Util.valueOfDeep(getLetterOffsets(prefixButOne).get(
-		// desiredLetter)));
-		return getLetterOffsets(prefixButOne).get(desiredLetter);
-	}
-
-	public Map<CollationKey, Perspective[]> getLetterOffsets(CollationKey prefix) {
-		assert isAlphabetic();
-		Map<CollationKey, Perspective[]> letterOffsets = instantiatedPerspective.lettersOffsets
-				.get(prefix);
-		if (letterOffsets == null) {
-			// assert prefix.equals(prefix.toUpperCase());
-			letterOffsets = createLetterOffsets(prefix);
-			// Util.print(prefix + " " + letterOffsets);
-		}
-		// Util.print("getLetterOffsets " + this+" '"+prefix.getSourceString() +
-		// "' "
-		// + (letterOffsets == null ? 0 : letterOffsets.size()));
-		return letterOffsets;
-	}
-
-	public String letterOffsetsString(CollationKey prefix) {
-		StringBuffer buf = new StringBuffer();
-		for (Iterator<Entry<CollationKey, Perspective[]>> it = letterOffsetsIterator(prefix); it
-				.hasNext();) {
-			Entry<CollationKey, Perspective[]> entry = it.next();
-			CollationKey letter = entry.getKey();
-			Perspective[] firstLast = entry.getValue();
-			buf.append(letter.getSourceString()).append("\t=> ").append(
-					firstLast[0]).append(" - ").append(firstLast[1]).append(
-					"\n");
-		}
-		return buf.toString();
-	}
-
-	private Map<CollationKey, Perspective[]> createLetterOffsets(
-			CollationKey prefix) {
-		// Util.print("createLetterOffsets " + this + " '"
-		// + prefix.getSourceString() + "'");
-		Map<CollationKey, Perspective[]> letterOffsets = null;
-		try {
-			ResultSet rs = query().getLetterOffsets(this, prefix);
-			Perspective first = firstWithPrefix(prefix);
-			// assert first.couldStartWith(prefix.getSourceString());
-			assert first != null : this + " '" + prefix.getSourceString()
-					+ "'\n"
-					+ MyResultSet.valueOfDeep(rs, MyResultSet.STRING_SINT, 200);
-			// Util.print("CLO "+MyResultSet.valueOfDeep(rs,
-			// MyResultSet.STRING_SINT, 200));
-			letterOffsets = new LinkedHashMap<CollationKey, Perspective[]>(
-					MyResultSet.nRows(rs));
-			while (rs.next()) {
-				// assert first.couldStartWith(prefix.getSourceString());
-				assert rs.getString(1).length() > 0 : this + ": '"
-						+ prefix.getSourceString()
-						+ "' is a maximal child name; there are no extensions";
-				CollationKey key = Util.toCollationKey(rs.getString(1)
-						.charAt(0));
-				Perspective last = query().findPerspective(rs.getInt(2));
-				assert last != null : this
-						+ " '"
-						+ prefix.getSourceString()
-						+ "' '"
-						+ key.getSourceString()
-						+ "'\n"
-						+ MyResultSet.valueOfDeep(rs, MyResultSet.STRING_SINT,
-								200);
-				Perspective[] firstLast = { first, last };
-				letterOffsets.put(key, firstLast);
-				// Util.print(" " + key.getSourceString() + " => "
-				// + Util.valueOfDeep(firstLast));
-				assert last.couldStartWith(prefix.getSourceString()
-						+ key.getSourceString());
-				first = last.nextSibling();
+			final int splitIndex = prefix.length() - 1;
+			final String prefixButOne = Util.nonNull(prefix.substring(0, splitIndex));
+			final Map<String, Interval<Perspective>> prefixButOneLetterOffsets = getLetterOffsets(prefixButOne, redraw);
+			if (prefixButOneLetterOffsets != null) {
+				final String suffix = prefix.substring(splitIndex);
+				result = prefixButOneLetterOffsets.get(suffix);
+				if (result == null) {
+					result = GenericInterval.getEmptyInterval();
+				}
+				assert result != null : this + " prefix=" + prefix + " suffix=" + suffix + "\n"
+						+ prefixButOneLetterOffsets;
 			}
-			rs.close();
-			instantiatedPerspective.lettersOffsets.put(prefix, letterOffsets);
-		} catch (SQLException e) {
-			e.printStackTrace();
 		}
-		// Util.print("letter offsets for " + this + " '" + prefix + "':");
-		// Util.print(letterOffsets);
+		return result;
+	}
+
+	/**
+	 * null means it is not yet computed.
+	 */
+	public @Nullable Map<String, Interval<Perspective>> lookupLetterOffsets(final @NonNull String prefix) {
+		assert isAlphabetic() : this;
+		assert prefix != null;
+		assert prefix.equals(prefix.toLowerCase()) : prefix;
+		final Map<String, Interval<Perspective>> letterOffsets = instantiatedPerspective.lookupLetterOffsets(prefix);
 		return letterOffsets;
 	}
 
-	private boolean couldStartWith(String prefix) {
-		String name = getNameIfPossible();
-		return name == null
-				|| (name.length() >= prefix.length() && Util.stringEquals(
-						prefix, name.substring(0, prefix.length())));
+	/**
+	 * May be called in thread LetterOffsetsCreator
+	 *
+	 * @return Map from a <i>lower case</i> String <i>of length 0 or 1</i> to
+	 *         the Perspective range of children starting with
+	 *         <b><i> parent+string </i></b> . @NonNull if redraw==null.
+	 */
+	public @Nullable Map<String, Interval<Perspective>> getLetterOffsets(final @NonNull String prefix,
+			final @Nullable RedrawCallback redraw) {
+		assert prefix.equals(prefix.toLowerCase()) : prefix;
+		Map<String, Interval<Perspective>> letterOffsets = lookupLetterOffsets(prefix);
+		if (letterOffsets == null) {
+			if (redraw != null && prefetchStatus() != PrefetchStatus.PREFETCHED_YES) {
+				query().queueGetLetterOffsets(this, prefix, redraw);
+			} else {
+				letterOffsets = createLetterOffsets(prefix);
+			}
+		}
+		return letterOffsets;
 	}
 
-	void setNchildren(int n, int child_offset) {
-		if (n > 0)
-			ensureInstantiatedPerspective().setNchildren(n, child_offset);
+	/**
+	 * May be called in thread LetterOffsetsCreator
+	 */
+	private @NonNull Map<String, Interval<Perspective>> createLetterOffsets(final @NonNull String prefix) {
+		assert prefix.equals(prefix.toLowerCase()) : prefix;
+		assert lookupLetterOffsets(prefix) == null : this + " '" + prefix + "'";
+		Map<String, Interval<Perspective>> result = null;
+		if (prefetchStatus() == PrefetchStatus.PREFETCHED_YES) {
+			result = createLetterOffsetsCached(prefix);
+		} else {
+			try (final MyResultSet rs = query().getLetterOffsets(this, prefix);) {
+				result = new LinkedHashMap<>(MyResultSet.nRows(rs));
+				while (rs.next()) {
+					final int minFacetID = rs.getInt(2);
+					final int maxFacetID = rs.getInt(3);
+					final Perspective firstWithExtension = query().findFirstEffectivePerspective(minFacetID, maxFacetID,
+							1);
+					if (firstWithExtension == null) {
+						continue;
+					}
+					final Perspective lastWithExtension = query().findFirstEffectivePerspective(minFacetID, maxFacetID,
+							-1);
+					final String key = rs.getString(1).toLowerCase();
+					assert key != null && lastWithExtension != null;
+					putLetterOffsetsValue(prefix, key, firstWithExtension, lastWithExtension, rs, false, result);
+				}
+			} catch (final Throwable e) {
+				e.printStackTrace();
+			}
+		}
+		assert result != null && !result.isEmpty() : this + " '" + prefix + "'";
+		assert UtilArray.assertIsSorted(result.keySet(), UtilString.MY_US_COLLATOR);
+		instantiatedPerspective.putLettersOffsets(prefix, result);
+		return result;
 	}
 
-	// public boolean isNameValid() {
-	// return name != null;
-	// }
-
-	String[] getDescriptionPreposition() {
-		return instantiatedPerspective == null ? parent.instantiatedPerspective.descriptionPreposition
-				: instantiatedPerspective.descriptionPreposition;
+	private @NonNull Map<String, Interval<Perspective>> createLetterOffsetsCached(final @NonNull String prefix) {
+		final Map<String, Interval<Perspective>> result = new LinkedHashMap<>();
+		final int prefixLength = prefix.length();
+		String suffix = null;
+		Perspective firstWithExtension = null;
+		Perspective lastWithExtension = null;
+		for (int i = 0; i < nChildrenRaw(); i++) {
+			final Perspective child = getRawNthChild(i);
+			final String name1 = child.getName().toLowerCase();
+			if (name1.startsWith(prefix)) {
+				if (name1.length() == prefixLength) {
+					suffix = "";
+					firstWithExtension = child;
+				} else {
+					final String nextLetter = name1.substring(prefixLength, prefixLength + 1);
+					assert nextLetter != null;
+					if (!UtilString.stringEqualsUS(suffix, nextLetter)) {
+						if (suffix != null) {
+							if (UtilString.stringCompareUS(suffix, nextLetter) >= 0) {
+								System.err.println(" Warning: Alphabetization error among children of " + this
+										+ ": prefix='" + prefix + "'\n previous child=" + child.previous()
+										+ "\n          child=" + child + "\n'" + suffix + "' should be before '"
+										+ nextLetter + "'.");
+							}
+							assert firstWithExtension != null && lastWithExtension != null;
+							putLetterOffsetsValue(prefix, suffix, firstWithExtension, lastWithExtension, null, false,
+									result);
+						}
+						suffix = nextLetter;
+						firstWithExtension = child;
+					}
+				}
+				lastWithExtension = child;
+			}
+		}
+		if (suffix != null) {
+			assert firstWithExtension != null && lastWithExtension != null;
+			putLetterOffsetsValue(prefix, suffix, firstWithExtension, lastWithExtension, null, false, result);
+		}
+		return result;
 	}
 
-	String getDescriptionCategory() {
-		return instantiatedPerspective == null ? parent.instantiatedPerspective.descriptionCategory
-				: instantiatedPerspective.descriptionCategory;
+	/**
+	 * letterOffsets.put(suffix, getClosedGenericInterval(firstWithExtension,
+	 * lastWithExtension)) iff that Interval's totalCount > 0.
+	 *
+	 * @param rs
+	 *            is only used for error messages.
+	 */
+	public boolean putLetterOffsetsValue(final @NonNull String prefix, final @NonNull String suffix,
+			final @NonNull Perspective firstWithExtension, final @NonNull Perspective lastWithExtension,
+			final @Nullable MyResultSet rs, final boolean isBogusSuffix,
+			final @NonNull Map<String, Interval<Perspective>> letterOffsets) {
+
+		// suffix.length()==0 when name==prefix
+		assert suffix.length() <= 1 && (isBogusSuffix || (lastWithExtension.couldStartWith(prefix + suffix)
+				&& firstWithExtension.couldStartWith(prefix + suffix))) : "parent=" + this + ": prefix='" + prefix
+						+ "' + suffix='" + suffix + "'  firstWithExtension=" + firstWithExtension
+						+ " - lastWithExtension=" + lastWithExtension + (rs == null ? "" : "\n" + rs.valueOfDeep(20));
+
+		final boolean result = lastWithExtension.cumTotalCountInclusive() > firstWithExtension.cumTotalCountExclusive();
+		if (result) {
+			letterOffsets.put(suffix, GenericInterval.getClosedGenericInterval(firstWithExtension, lastWithExtension));
+		}
+		return result;
+	}
+
+	/**
+	 * Only called by getLetterOffsetsValue.
+	 *
+	 * @return whether name starts with prefix or is not cached.
+	 */
+	private boolean couldStartWith(final @NonNull String prefix) {
+		boolean result = true;
+		final int length = prefix.length();
+		// Optimize common case
+		if (length > 0) {
+			if (name != null) {
+				// stringEqualsUS ignores case
+				result = UtilString.stringEqualsUS(prefix, name.substring(0, length));
+			}
+		}
+		return result;
+	}
+
+	private void setNchildren(final int n_children, final int children_offset) {
+		setNchildren(n_children);
+		if (n_children > 0) {
+			instantiatedPerspective.setChildrenOffset(children_offset);
+		}
+	}
+
+	private void setNchildren(final int n_children) {
+		nChildrenRaw = n_children;
+		if (nChildrenRaw > 0) {
+			instantiatedPerspective.setNchildrenRaw(n_children);
+		}
+	}
+
+	private void setChildrenOffset(final int offset) {
+		assert (offset > 0) == (nChildrenRaw() > 0) : this + " offset=" + offset + " nChildrenRaw=" + nChildrenRaw();
+		if (offset > 0) {
+			assert offset >= facet_id : facet_id + " " + offset;
+			instantiatedPerspective.setChildrenOffset(offset);
+		}
 	}
 
 	@Override
 	public String toString() {
-		StringBuffer buf = new StringBuffer();
-		buf.append(getNameIfPossible()).append(" (").append(getServerID())
-				.append(")");
-		// buf.append(" index=" + getIndex() + " ");
-		// buf.append(nChildren).append(" ").append(children_offset);
-		// buf.append("; local:
-		// ").append(onCount).append("/").append(totalCount);
-		// buf.append("; cum on parent: ").append(cumCount).append("/");
-		// if (parent != null)
-		// buf.append(parent.getTotalChildTotalCount());
-		// else
-		// buf.append("?");
-		return buf.toString();
-	}
-
-	public String toString(PerspectiveObserver redrawer1) {
-		StringBuffer buf = new StringBuffer();
-		buf.append(getName(redrawer1)).append(" (").append(getServerID())
-				.append(")");
-		// buf.append(" index=" + getIndex() + " ");
-		// buf.append(nChildren).append(" ").append(children_offset);
-		// buf.append("; local:
-		// ").append(onCount).append("/").append(totalCount);
-		// buf.append("; cum on parent: ").append(cumCount).append("/");
-		// if (parent != null)
-		// buf.append(parent.getTotalChildTotalCount());
-		// else
-		// buf.append("?");
-		return buf.toString();
-	}
-
-	String toStringWithCumCount() {
-		return this + " (" + cumCountExclusive() + " - " + cumCountInclusive()
-				+ ")";
-	}
-
-	// public String getRestrictionName(boolean isLocalOnly) {
-	// String[] names = getRestrictionNames(isLocalOnly);
-	// assert perspective.restrictions.length == 0 || names.length > 0;
-	// return Util.arrayToEnglish(names, " or ");
-	// }
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#describeFilter()
-	 */
-	public Markup describeFilter() {
-		Markup filterDescription = getDescription(false, filterTypes); // getRestrictionName
-		// (
-		// false
-		// );
-		filterDescription.add(0, "filter ");
-		filterDescription.add(1, getFacetType());
-		// filterDescription.add(2, " = ");
-		// Util.print("Perspective.describeFilter "
-		// + Util.valueOfDeep(filterDescription));
-		return filterDescription;
-	}
-
-	void describeFilter(Markup v, Perspective facet, boolean require) {
-		v.add(getFacetType());
-		v.add(filterColors[require ? 0 : 1]);
-		v.add(filterTypes[require ? 0 : 1]);
-		v.add(Markup.DEFAULT_COLOR_TAG);
-		v.add(facet);
-		// Util.print("Perspective.describeFilter "
-		// + Util.valueOfDeep(v));
+		final StringBuilder buf = new StringBuilder();
+		buf.append(getNameIfCached()).append(" (").append(UtilString.addCommas(facet_id)).append(")");
+		return UtilString.toString(this, buf);
 	}
 
 	/**
 	 * @return this facet's most general ancestor
 	 */
-	public Perspective getFacetType() {
-		if (getParent() != null)
+	public @NonNull Perspective getFacetType() {
+		if (parent != null) {
 			return parent.getFacetType();
-		else
-			return this;
+		}
+		return this;
 	}
 
-	// /**
-	// * @return whether we don't have a parent
-	// */
-	// public boolean isTopLevel() {
-	// return getParent() == null;
-	// }
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#getQuery()
-	 */
-	public Query query() {
-		return instantiatedPerspective == null ? parent.instantiatedPerspective.q
-				: instantiatedPerspective.q;
+	public @NonNull Query query() {
+		return query;
 	}
 
 	/**
@@ -1244,1975 +1116,854 @@ public class Perspective implements ItemPredicate {
 		return parent == null;
 	}
 
-	// /**
-	// * @param i
-	// * which child facet to return
-	// * @return the i'th child facet ordered by onCount
-	// */
-	// public Perspective getNthOnValue(int i) {
-	// return getNthOnValue(i, true);
-	// }
-
-	// Perspective getNthOnValue(int i, boolean isNonNull) {
-	// // assert !Util.hasDuplicates(perspective.dataIndexByOn) :
-	// // Util.valueOfDeep(perspective.dataIndexByOn);
-	// if (isNonNull) {
-	// assert instantiatedPerspective.dataIndexByOn[i] != null : this
-	// + " " + i + " / " + nChildren() + "\n"
-	// + Util.valueOfDeep(instantiatedPerspective.dataIndexByOn);
-	// }
-	// return instantiatedPerspective.dataIndexByOn[i];
-	// }
-
-	void setMaxChildTotalCount(int maxCount) {
-		// Util.print("setMaxChildTotalCount " + this + " " + maxCount);
-		instantiatedPerspective.maxChildTotalCount = maxCount;
-	}
-
-	/**
-	 * @return the largest totalCount of any of our child facets
-	 */
-	public int maxChildTotalCount() {
-		assert instantiatedPerspective.maxChildTotalCount > 0 : this;
-		return instantiatedPerspective.maxChildTotalCount;
-	}
-
-	boolean isAnyRestrictions() {
-		return isRestricted() || nUsedChildren() > 0;
-	}
-
-	void deleteRestriction(ItemPredicate facet, boolean require) {
-		restrictions().delete(facet, require);
-		decacheDescriptions();
-	}
-
-	void addRestriction(Perspective facet, boolean require) {
-		restrictions().add(facet, require);
-		decacheDescriptions();
-	}
-
-	void clearRestrictions() {
-		// Util.print("clearRestrictions " + this);
-		instantiatedPerspective.clearRestrictions();
-		decacheDescriptions();
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#nRestrictions()
-	 */
 	public int nRestrictions() {
-		return restrictions().nRestrictions();
+		return instantiatedPerspective != null ? instantiatedPerspective.nRestrictions() : 0;
 	}
 
-	int nRestrictions(boolean require) {
-		return restrictions().nRestrictions(require);
+	public int nRestrictions(final boolean polarity) {
+		return instantiatedPerspective != null ? instantiatedPerspective.nRestrictions(polarity) : 0;
 	}
 
 	/**
 	 * @return does this facet have a filter on one of its children?
 	 */
 	public boolean isRestricted() {
-		return restrictions().isRestricted();
+		return instantiatedPerspective != null && instantiatedPerspective.isRestricted();
 	}
 
 	/**
-	 * @param required
-	 *            whether to look for a positive or negative filter
-	 * @return is this facet mentioned in a filter whose polarity == required?
+	 * @return does this facet have a filter with polarity on one of its
+	 *         children?
 	 */
-	public boolean isRestricted(boolean required) {
-		// Util.print("isRestricted " + this + " " + required + " => " +
-		// perspective.restrictions.isRestricted(required));
-		return restrictions().isRestricted(required);
-	}
-
-	// Perspective getRestriction(int n, boolean require) {
-	// return restrictions().getRestriction(n, require);
-	// }
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#allRestrictions()
-	 */
-	public SortedSet<Perspective> allRestrictions() {
-		return restrictions().allRestrictions();
-	}
-
-	SortedSet<Perspective> restrictions(boolean require) {
-		return restrictions().restrictions(require);
-	}
-
-	Restrictions restrictions() {
-		return instantiatedPerspective.restrictions();
+	public boolean isRestricted(final boolean polarity) { // NO_UCD (use
+															// default)
+		return instantiatedPerspective != null && instantiatedPerspective.isRestricted(polarity);
 	}
 
 	/**
-	 * @param required
+	 * Will create Restrictions, so avoid calling if possible.
+	 */
+	@NonNull
+	List<Perspective> allRestrictionsList() {
+		final Restrictions restrictionsOrNull = restrictionsOrNull();
+		if (restrictionsOrNull == null) {
+			return UtilArray.EMPTY_LIST;
+		} else {
+			return restrictionsOrNull.allRestrictionsList();
+		}
+	}
+
+	public @NonNull Set<Perspective> restrictions(final boolean polarity) {
+		final Restrictions restrictionsOrNull = restrictionsOrNull();
+		if (restrictionsOrNull == null) {
+			return UtilArray.EMPTY_SET;
+		} else {
+			return restrictionsOrNull.restrictions(polarity);
+		}
+	}
+
+	public @Nullable Restrictions restrictionsOrNull() {
+		return instantiatedPerspective.restrictionsOrNull();
+	}
+
+	/**
 	 * @return Is this one of parent's restrictions?
 	 */
-	public boolean isRestriction(boolean required) {
-		if (getParent() != null)
-			return getParent().isRestriction(this, required);
-		else if (required)
-			return isRestricted(required);
-		else
-			return false;
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#isRestriction(query.ItemPredicate, boolean)
-	 */
-	public boolean isRestriction(ItemPredicate facet, boolean required) {
-		// assert !isRestricted() || getQuery().usesPerspective(this) : this;
-		// return (isRestricted() && (facet == this || perspective.restrictions
-		// .isRestriction(facet, required)));
-		boolean result = restrictions().isRestriction(facet, required);
-		// Util.print("p.isRestriction "+facet+" "+required+" => "+result);
-		return result;
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#isRestriction()
-	 */
 	public boolean isRestriction() {
-		// assert !isRestricted() || getQuery().usesPerspective(this) : this;
-		// return (isRestricted() && (facet == this || perspective.restrictions
-		// .isRestriction(facet, required)));
-		return isRestriction(true) || isRestriction(false);
-	}
-
-	// void setRestrictions(Restrictions _restrictions) {
-	// perspective.restrictions = _restrictions;
-	// decacheDescriptions();
-	// }
-
-	void decacheDescriptions() {
-		// Util.print(getName() + ".decacheDescriptions");
-		// perspective.descriptions = null;
-		// instantiatedPerspective.localRestrictionNames = null;
-		// instantiatedPerspective.nonLocalRestrictionNames = null;
-		// perspective.filterDescription = null;
-		if (parent != null)
-			parent.decacheDescriptions();
+		return parent != null && parent.isRestriction(this);
 	}
 
 	/**
-	 * @return e.g. 'works from 20th century'
+	 * @return Is this one of parent's restrictions? or equivalently, Does this
+	 *         restriction logically follow from the query?
+	 *
+	 *         Positive restrictions are propagated up, so it will always be
+	 *         explicit on parent.
+	 *
+	 *         For negative restrictions [except in expert mode] there will
+	 *         never be a PV for this Perspective, and parent will know that any
+	 *         Bars are excluded.
 	 */
-	public Markup facetDescription() {
-		return MarkupImplementation.facetDescription(this);
+	public boolean isRestriction(final boolean polarity) {
+		return parent != null && parent.isRestriction(this, polarity);
 	}
 
 	/**
-	 * @return parent.facetDescription() or if no parent
-	 *         query().parentDescription()
+	 * @return Is child one of our restrictions?
 	 */
-	public Markup parentDescription() {
-		if (parent == null) {
-			return query().parentDescription();
-		} else
-			return parent.facetDescription();
-		// Perspective parent = facet != null ? facet.getParent() : null;
-		// return parent == null ? "" : parent.facetDescription().toText(this);
+	private boolean isRestriction(final @NonNull Perspective child) {
+		assert assertIsChild(child);
+		return instantiatedPerspective.isRestriction(child);
 	}
 
 	/**
-	 * @param doTag
-	 *            prepend with descriptionCategory & descriptionProposition?
-	 *            always prepend exclude (as NOT).
-	 * @param patterns
-	 *            {positive pattern, negative pattern}
-	 * @return description of this perspective's restrictions e.g. 'that show
-	 *         religion, but don't show animals'
+	 * @return Is child one of our restrictions?
 	 */
-	Markup getDescription(boolean doTag, String[] patterns) {
-		Markup[] descriptions = new Markup[2];
-		boolean[] reqtTypes = { true, false };
-		for (int type = 0; type < 2; type++) {
-			boolean reqtType = reqtTypes[type];
-			SortedSet<Perspective> info = getRestrictionFacetInfos(false,
-					reqtType);
-			if (!info.isEmpty()) {
-				descriptions[type] = Query.emptyMarkup();
-				MarkupImplementation
-						.toEnglish(info, " or ", descriptions[type]);
-			}
-		}
-		Markup result = tagDescription(descriptions, doTag, patterns);
-		// Util.print(this + ".getDescription(" + doTag + ") => "
-		// + Util.valueOfDeep(result));
+	boolean isRestriction(final @NonNull Perspective child, final boolean polarity) {
+		assert assertIsChild(child);
+		return instantiatedPerspective.isRestriction(child, polarity);
+	}
+
+	public @NonNull YesNoMaybe restrictionPolarity() {
+		return isRestriction(true) ? YesNoMaybe.YES : isRestriction(false) ? YesNoMaybe.NO : YesNoMaybe.MAYBE;
+	}
+
+	@Override
+	public @NonNull Collection<Perspective> getFacets() {
+		final Set<Perspective> result = Collections.singleton(this);
+		assert result != null;
 		return result;
-	}
-
-	/**
-	 * @param restrictions
-	 *            {positive restrictions, negative restrictions}
-	 * @param doTag
-	 *            prepend with descriptionCategory & descriptionProposition?
-	 *            always prepend exclude (as NOT).
-	 * @param patterns
-	 *            {positive pattern, negative pattern}
-	 * @return description of the restrictions
-	 */
-	public Markup tagDescription(Markup[] restrictions, boolean doTag,
-			String[] patterns) {
-		if (patterns == null)
-			patterns = getDescriptionPreposition();
-		return MarkupImplementation.tagDescription(restrictions, doTag,
-				patterns, getDescriptionCategory());
-	}
-
-	// public Perspective[] getUsedChildren() {
-	// Perspective[] result = {};
-	// Iterator it = instantiatedPerspective.q.perspectivesIterator();
-	// while (it.hasNext()) {
-	// Perspective child = (Perspective) it.next();
-	// if (child.parent == this)
-	// result = (Perspective[]) Util.push(result, child,
-	// Perspective.class);
-	// }
-	// return result;
-	// }
-
-	// public boolean hasUsedChildren() {
-	// boolean found = false;
-	// Iterator it = perspective.q.perspectivesIterator();
-	// while (it.hasNext() && !found) {
-	// Perspective child = (Perspective) it.next();
-	// found = child.parent == this;
-	// }
-	// return found;
-	// }
-
-	// Clicking in the Summary window:
-	// If you click on an unselected tag, it gets selected.
-	// with Shift, tags between it and the last selected tag are also
-	// selected,
-	// otherwise, without Control, other tags are deselected.
-	// If you click on a selected tag with Control, it gets unselected,
-	// otherwise, without Shift all tags are deselected.
-	// Ancestors never change.
-	// Descendents of any unselected tag are killed.
-	// Clicking in the Detail window:
-	// On facet_type
-	// with Shift or Control, does nothing
-	// otherwise clears all tags.
-	// On descendent not represented by a perspective
-	// adds missing perspectives, and then behaves as in summary window.
-	// Otherwise, behaves as in summary window.
-	//     
-	// Algorithm:
-	// If descendent add intermediates.
-	// If facet_type
-	// If Shift or Control, exit, otherwise clear.
-	// Perspective where facet is a tag will do what it says above.
-	//     	
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#facetDoc(int)
-	 */
-	public Markup facetDoc(int modifiers) {
-		if (getParent() == null)
-			// This happens for facet_type labels in SelectedItem frame.
-			return null; // facetDoc(this, modifiers);
-		else
-			return parent.facetDoc(this, modifiers);
-	}
-
-	Markup facetDoc(Perspective facet, int modifiers) {
-		boolean require = (!Util.isAnyShiftKeyDown(modifiers) && isRestriction(
-				facet, false)) ? false : !isExcludeAction(modifiers);
-		// Util.print("\nPerspective.facetDoc " + facet + "\nrequire=" + require
-		// + " nRestrictions=" + nRestrictions()
-		// + " isRestriction(require)=" + isRestricted(require)
-		// + "\nisRestriction(facet, require)="
-		// + isRestriction(facet, require) + " modifiers=" + modifiers + "
-		// isShiftDown="
-		// + isShiftDown(modifiers) + " isControlDown=" +
-		// isControlDown(modifiers));
-		assert modifiers >= 0;
-		Markup result = null;
-		if (isDisplayOnlyAction(modifiers))
-			result = displayFacetDoc(facet);
-		else if (!isRestricted()) {
-			if (facet.guessOnCount() != (Perspective.isExcludeAction(modifiers) ? query().onCount
-					: 0)
-					|| !query().isQueryValid()
-					// onCount may not be right if query is invalid.
-					|| !query().displaysPerspective(facet.parent))
-				// Don't encourage clicks that will return 0 results; but do
-				// allow
-				// clicks on deeply nested SelectedItem facets.
-				result = selectFacetDoc(facet, require);
-		} else if (isRestriction(facet, require)) {
-			if (nRestrictions() == 1 || !Util.isAnyShiftKeyDown(modifiers))
-				result = deselectAllFacetsDoc(require);
-			else if (Util.isControlDown(modifiers) || !require)
-				result = deselectFacetDoc(facet, require);
-			// Do nothing on SHIFT
-		} else if (Util.isShiftDown(modifiers))
-			result = selectInterveningFacetsDoc(facet, require);
-		else if (Util.isControlDown(modifiers) || !require)
-			result = selectFacetDoc(facet, require);
-		else
-			result = replaceFacetDoc(facet, require);
-		// Util.print("...facetDoc return " + result);
-		return result;
-	}
-
-	/**
-	 * @param modifiers
-	 *            mouse gesture modifiers
-	 * @return should the gesture add a negated filter?
-	 */
-	public static boolean isExcludeAction(int modifiers) {
-		return (modifiers & EXCLUDE_ACTION) != 0;
-	}
-
-	public static boolean isDisplayOnlyAction(int modifiers) {
-		// Util.print("idoa " + (modifiers & Util.modifierMask) + " "
-		// + InputEvent.ALT_DOWN_MASK + " " + InputEvent.ALT_MASK);
-		return (modifiers & Util.modifierMask) == InputEvent.ALT_DOWN_MASK;
-	}
-
-	Markup deselectFacetDoc(Perspective facet, boolean require) {
-		// Leave other facets alone.
-		Markup v = describeFilter();
-		v.add(0, "Remove ");
-		v.add(1, facet);
-		v.add(2, " from ");
-		if (!require) {
-			v.add(1, Markup.DEFAULT_COLOR_TAG);
-			v.add(1, " NOT ");
-			v.add(1, filterColors[require ? 0 : 1]);
-		}
-		return v;
-	}
-
-	/**
-	 * Our most recent ancestor that is a restriction. Will always be parent
-	 * inside summary, but might be more distant for selectedItem.
-	 */
-	Perspective ancestorRestriction(Perspective facet) {
-		if (isRestriction(facet, true))
-			return facet;
-		else if (getParent() != null) {
-			return parent.ancestorRestriction(this);
-		} else
-			return null;
-	}
-
-	/**
-	 * @return the most recent ancestor for which there should be a
-	 *         PerspectiveViz
-	 */
-	public Perspective pv() {
-		if (isDisplayed())
-			return this;
-		else
-			return parent.pv();
-	}
-
-	/**
-	 * @return "<facet type> -- <ancestor> ... <ancestor> -- <this name>" used
-	 *         for bookmarking
-	 */
-	public String fullName() {
-		if (parent == null)
-			return getName();
-		else
-			return parent.fullName() + " -- " + getName();
-	}
-
-	Markup deselectAllFacetsDoc(boolean require) {
-		// Perspective ancestorRestriction = parent != null ?
-		// parent.ancestorRestriction(this) : null;
-		Perspective ancestorRestriction = ancestorRestriction(this);
-		if (ancestorRestriction != null)
-			return replaceFacetDoc(ancestorRestriction, require);
-		else {
-			int nRestrictions = getFacetType().nUsedChildren();
-			Markup v = Query.emptyMarkup();
-			if (nRestrictions > 1) {
-				v.add("Remove " + nRestrictions + " filters on ");
-			} else {
-				v.add("Remove filter on ");
-			}
-			v.add(getFacetType());
-			// Vector v = describeFilter();
-			// v.add(0, "Remove ");
-			return v;
-		}
-	}
-
-	int nUsedChildren() {
-		int result = 0;
-		for (Iterator<Perspective> it = query().displayedPerspectives()
-				.iterator(); it.hasNext();) {
-			Perspective child = it.next();
-			if (child.getParent() == this) {
-				result++;
-			}
-		}
-		return result;
-	}
-
-	Markup selectInterveningFacetsDoc(Perspective facet, boolean require) {
-		if (!isRestricted(require))
-			return selectFacetDoc(facet, require);
-		Markup v = describeFilter();
-		Perspective low;
-		Perspective hi;
-		Perspective prev = restrictions(require).first();
-		if (facet.getID() < prev.getID()) {
-			low = facet;
-			// Should set hi to facet alphabetically preceding prev.
-			// If this equals facet, call selectFacetDoc instead.
-			hi = prev;
-		} else {
-			low = prev;
-			hi = facet;
-		}
-		// v.add(0, low);
-		// v.add(1, " through ");
-		v.add(2, hi);
-		v.add(3, " to ");
-		addAddNOT(v, "Add ", require, low, " through ");
-		return v;
-	}
-
-	void addAddNOT(Markup v, String op, boolean require, Perspective facet,
-			String object) {
-		if (object != null)
-			v.add(0, object);
-		v.add(0, facet);
-		if (!require) {
-			v.add(0, Markup.DEFAULT_COLOR_TAG);
-			v.add(0, "NOT ");
-			v.add(0, filterColors[1]);
-		}
-		v.add(0, op);
-	}
-
-	Markup selectFacetDoc(Perspective facet, boolean require) {
-		// Util.print("selectFacetDoc " + facetName + " " + restrictions.length
-		// + " " + (facet != facet_type_id));
-		// Leave other facets alone.
-		Markup result = null;
-		if (isRestriction(facet, !require)) {
-			if (nRestrictions() == 1)
-				return replaceFacetDoc(facet, require);
-			result = describeFilter();
-			addAddNOT(result, "with ", require, facet, " in ");
-			addAddNOT(result, "Replace ", !require, facet, null);
-		} else if (isRestricted()) {
-			result = describeFilter();
-			// result.add(0, " to ");
-			// result.add(0, facet);
-			addAddNOT(result, "Add ", require, facet, " to ");
-		} else if (facet != this) {
-			result = Query.emptyMarkup();
-			result.add("Add filter ");
-			describeFilter(result, facet, require);
-		}
-		return result;
-	}
-
-	Markup replaceFacetDoc(Perspective facet, boolean require) {
-		// Util.print("replaceFacetDoc " + facetName);
-		Markup result = describeFilter();
-		result.add(0, "Replace ");
-		result.add(Markup.NEWLINE_TAG);
-		result.add(" with ");
-		describeFilter(result, facet, require);
-		return result;
-	}
-
-	Markup displayFacetDoc(Perspective facet) {
-		// Util.print("replaceFacetDoc " + facetName);
-		Markup result = new MarkupImplementation();
-		result.add("Ensure that ");
-		result.add(facet);
-		result.add(" is displayed on the Tag Wall");
-		return result;
-	}
-
-	public void displayAncestors() {
-		if (!isDisplayed()) {
-			parent.displayAncestors();
-			query().insertPerspective(this);
-		}
 	}
 
 	/**
 	 * All restriction changes go through this function.
-	 * 
-	 * @return Returns true if it changed the query.
+	 *
+	 * Update selections, and ensure there's a [displayed] Perspective for newly
+	 * selected facets' ancestors.
+	 *
+	 * @return whether the query changed (and if not, why not).
 	 */
-	boolean toggleFacet(Perspective facet, int modifiers) {
-		// Util.print("Perspective.toggleFacet " + facet + " " + modifiers + " "
-		// + isRestriction(facet, false) + " "
-		// + isRestriction(facet, true) + " " + isRestricted() + " "
-		// + allRestrictions());
+	public @NonNull ToggleFacetResult toggleFacet(final @Nullable Perspective fromChild,
+			final @NonNull Perspective toChild, final int modifiers) {
+		final boolean polarity = isRequireAction(toChild, modifiers);
+		final ToggleFacetResult result = new ToggleFacetResult(!Util.isDisplayOnlyAction(modifiers));
+		Collection<Perspective> toDisplay = new HashSet<>();
+		if (!result.result) {
+			toDisplay.add(toChild);
+		} else if (Util.isShiftDown(modifiers)) {
+			toDisplay = selectInterveningFacets(fromChild, toChild, !Util.isExcludeAction(modifiers), result);
+		} else if (isRestriction(toChild, polarity) && !isDeselectOthers(modifiers)) {
+			result.result = deselect(toChild, modifiers, false);
+		} else {
+			deselect(toChild, modifiers, false);
+			toDisplay.add(toChild);
+			selectFacet(toChild, polarity);
+		}
+		displayAncestors(toDisplay);
+		return result;
+	}
 
-		if (isDisplayOnlyAction(modifiers))
-			return true;
-		boolean result = true;
-		boolean require = isRequireAction(facet, modifiers);
-		if (isRestriction(facet, require)) {
-			if (Util.isControlDown(modifiers) || isExcludeAction(modifiers)) {
-				deselectFacet(facet, require);
-			} else if (!Util.isShiftDown(modifiers))
-				deselectAllFacets();
-			else
-				result = false;
-		} else if (Util.isShiftDown(modifiers))
-			result = selectInterveningFacets(facet, !isExcludeAction(modifiers));
-		else {
-			if (isRestricted() && !Util.isControlDown(modifiers) && require)
-				deselectAllFacets();
-			else if (isRestriction(facet, !require)) {
-				deselectFacet(facet, !require);
+	/**
+	 * @return Not an exclude and either child isn't excluded or a shift key is
+	 *         pressed.
+	 */
+	boolean isRequireAction(final @NonNull Perspective child, final int modifiers) {
+		final boolean polarity = !Util.isExcludeAction(modifiers)
+				&& (Util.isAnyShiftKeyDown(modifiers) || !isRestriction(child, false));
+		return polarity;
+	}
+
+	/**
+	 * ~(CTRL | SHIFT | EXCLUDE)
+	 */
+	public static boolean isDeselectOthers(final int modifiers) {
+		return (modifiers & BungeeConstants.DONT_DESELECT_OTHERS_MASK) == 0;
+	}
+
+	public static class ToggleFacetResult {
+		public boolean result;
+		public @Nullable String errorMsg = null;
+
+		public ToggleFacetResult(final boolean _result) {
+			result = _result;
+		}
+
+		@Override
+		public String toString() {
+			return UtilString.toString(this, "result=" + result + " errorMsg=" + errorMsg);
+		}
+
+	}
+
+	/**
+	 * @return whether anything was/would be deselected if child is selected
+	 *         with the given modifiers.
+	 *
+	 *         If deselectOthers, deselect all children selected with either
+	 *         polarity.
+	 *
+	 *         Otherwise, deselect child if it is selected with either polarity.
+	 */
+	public boolean deselect(final @NonNull Perspective child, final int modifiers, final boolean dontDeselect) {
+		return isDeselectOthers(modifiers) ? deselectInternal(allRestrictionsList(), dontDeselect)
+				: deselectInternal(child, dontDeselect);
+	}
+
+	static boolean deselectInternal(final @NonNull List<Perspective> children, final boolean dontDeselect) {
+		boolean result = false;
+		for (int i = children.size() - 1; i >= 0; i--) {
+			final Perspective child = children.get(i);
+			assert child != null;
+			if (deselectInternal(child, dontDeselect)) {
+				result = true;
+				if (dontDeselect) {
+					break;
+				}
 			}
-			result = selectFacet(facet, require);
 		}
 		return result;
 	}
 
-	public boolean isRequireAction(Perspective facet, int modifiers) {
-		boolean require = !(isExcludeAction(modifiers) || (!Util
-				.isAnyShiftKeyDown(modifiers) && isRestriction(facet, false)));
-		return require;
+	static boolean deselectInternal(final @NonNull Perspective child, final boolean dontDeselect) {
+		return dontDeselect ? child.isRestriction() : child.deselectNundisplay();
 	}
 
 	/**
-	 * @return Returns true if it changed the query.
+	 * Remove parent's restriction on this (if any). In any case, undisplay
+	 * this.
 	 */
-	private boolean selectInterveningFacets(Perspective facet, boolean require) {
-		assert !isRestriction(facet, require) : "selectInterveningFacets problem";
-		if (isRestricted(require)) {
-			int index = facet.getID();
-			int index2 = restrictions(require).first().getID();
-			int lowIndex = Math.min(index, index2);
-			int highIndex = Math.max(index, index2);
-			// Util.print("p.selectInterveningFacets " + lowIndex + " "
-			// + highIndex);
-
-			for (int i = lowIndex; i <= highIndex; i++) {
-				Perspective p = instantiatedPerspective.q.findPerspective(i);
-				if (!isRestriction(p, require))
-					selectFacet(p, require);
-			}
-		} else
-			selectFacet(facet, require);
-		return true;
+	public boolean deselectNundisplay() {
+		undisplay();
+		assert parent != null;
+		return parent.deleteRestriction(this);
 	}
 
-	private void deselectFacet(Perspective facet, boolean require) {
-		// Util.print("deselectFacet " + facet + " " + require);
-		deleteRestriction(facet, require);
-		instantiatedPerspective.q.removeRestriction(facet);
-	}
-
-	void deselectAllFacets() {
-		// Util.print("p.deselectAllFacets " + this);
-		assert isRestricted() : this;
-		instantiatedPerspective.q.clearPerspective(this);
-	}
-
-	/**
-	 * @return Returns true if it changed the query.
-	 */
-	boolean selectFacet(Perspective facet, boolean require) {
-		// Util.print("p.selectFacet " + this + "." + facet + " " + require +
-		// " "
-		// + ancestorRestriction(facet));
-		assert !isRestriction(facet, require) : facet + " " + this + " "
-				+ require + " " + allRestrictions();
-		addRestriction(facet, require);
-		if (facet.isEffectiveChildren() && require) {
-			instantiatedPerspective.q.insertPerspective(facet);
+	private boolean deleteRestriction(@NonNull final Perspective child) {
+		assert assertIsChild(child);
+		boolean result = false;
+		final Restrictions restrictionsOrNull = restrictionsOrNull();
+		if (restrictionsOrNull != null) {
+			result = restrictionsOrNull.delete(child);
 		}
-		return true;
+		return result;
+	}
+
+	public void undisplay() {
+		if (isDisplayed()) {
+			query().undisplay(this);
+			clearPerspective();
+		}
 	}
 
 	/**
-	 * Reset counts in preparation for reading new data (count = 0), or after
-	 * removing from query (count = -1).
+	 * Remove all filters, and recurse on isDisplayed() children.
 	 */
-	void resetData(int count) {
-		instantiatedPerspective.resetData(count);
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#restrictData()
-	 */
-	public boolean restrictData() {
-		// Util.print("Perspective.restrictData " + this);
-		assert isPrefetched() : this;
-		int childCumCount = 0;
-		int maxCount = -1;
-		// sortDataIndexByIndex();
-		for (Iterator<Perspective> it = getChildIterator(); it.hasNext();) {
-			Perspective child = it.next();
-			int count = child.onCount;
-			assert count >= 0 : child + " " + query() + " "
-					+ query().displayedPerspectives();
-
-			// Query.restrict calls Query.clear, which will resetData of facet
-			// to -1
-			// and then restrictData of facet will make totalCount = -1
-			// Pre-empt this by clearing here and then setting totalCount
-			// getQuery().removeRestriction(facet);
-			if (count > maxCount)
-				maxCount = count;
-			childCumCount += count;
-			// facet.totalCount = count;
-			child.cumCount = childCumCount;
+	public void clearPerspective() {
+		// recurse to clear descendents' restrictions (assumes only displayed
+		// descendents are restricted).
+		for (final Perspective child : instantiatedPerspective.getChildrenRaw()) {
+			if (child != null) {
+				child.undisplay();
+			}
 		}
 		clearRestrictions();
-		boolean used = childCumCount > 0;
-		if (!used)
-			query().removeRestriction(this);
-		setTotalChildTotalCount(childCumCount);
-		// totalCount = onCount;
-		// setTotalChildOnCount(cumCount);
-		setMaxChildTotalCount(maxCount);
-		// if (parent != null)
-		// parent.updateChildPercents();
-		return used;
 	}
 
-	// public String[] getRestrictionNames(boolean isLocalOnly) {
-	// String[] result = isLocalOnly ? perspective.localRestrictionNames
-	// : perspective.nonLocalRestrictionNames;
-	// if (result == null) {
-	// Perspective[] info = getRestrictionFacetInfos(isLocalOnly);
-	// String[] names = new String[info.length];
-	// for (int i = 0; i < names.length; i++) {
-	// names[i] = info[i].getName();
-	// if (names[i] == null)
-	// return null;
-	// }
-	// result = names;
-	// if (isLocalOnly)
-	// perspective.localRestrictionNames = names;
-	// else
-	// perspective.nonLocalRestrictionNames = names;
-	// }
-	// // Util.print(getName() + ".getRestrictionNames " + isLocalOnly + " => "
-	// // + Util.valueOfDeep(result));
-	// return result;
-	// }
-
-	// int[] getRestrictions(boolean require) {
-	// Perspective[] info = getRestrictionFacetInfos(false, require);
-	// int[] result = new int[info.length];
-	// for (int i = 0; i < result.length; i++)
-	// result[i] = info[i].facet_id;
-	// return result;
-	// }
-
-	// isLocalOnly means
 	/**
-	 * @param isLocalOnly
-	 *            don't return restrictions implied by a restriction on a child
-	 *            Perspective. otherwise, return the more specific
-	 *            restriction(s).
-	 * @param require
-	 *            restriction polarity
-	 * @return the restricting facets
+	 * Just clears restrictions().
 	 */
-	public SortedSet<Perspective> getRestrictionFacetInfos(boolean isLocalOnly,
-			boolean require) {
-		// Util.print("getRestrictionFacetInfos " + this + " " + require + " "
-		// + isLocalOnly + " " + nRestrictions(require));
-		// assert isLocalOnly || require : "Excludes don't propagate up, so you
-		// can't search for them non-locally!";
-		SortedSet<Perspective> result = new TreeSet<Perspective>();
-		// int n = nRestrictions(require);
-		for (Iterator<Perspective> it = restrictions(require).iterator(); it
-				.hasNext();) {
-			Perspective child = it.next();
-			boolean found = false;
-			if (require && query().displaysPerspective(child)) {
-				if (isLocalOnly)
-					found = true;
-				else {
-					SortedSet<Perspective> childResult = child
-							.getRestrictionFacetInfos(isLocalOnly, require);
-					if (childResult.size() > 0) {
-						found = true;
-						result.addAll(childResult);
+	private void clearRestrictions() {
+		instantiatedPerspective.clearRestrictions();
+	}
+
+	// /**
+	// * Only called by UserAction
+	// *
+	// * @return whether anything new was displayed.
+	// */
+	// @SuppressWarnings("null")
+	// public boolean displayMyAncestors() {
+	// return displayAncestors(Collections.singletonList(this));
+	// }
+
+	/**
+	 * @return whether anything new was displayed.
+	 */
+	public static boolean displayAncestors(final @NonNull Collection<Perspective> perspectives) {
+		boolean result = false;
+		for (final Perspective toDisplay : perspectives) {
+			if (toDisplay.displayAncestors()) {
+				result = true;
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * If isEffectiveChildren, display this. Otherwise, just ancestors.
+	 *
+	 * @return whether anything was displayed, in which case
+	 *         query().updateData() must be called to get onCounts and
+	 *         totalCounts.
+	 */
+	public boolean displayAncestors() {
+		boolean result = false;
+		if (!isDisplayed()) {
+			assert parent != null;
+			result = parent.displayAncestors();
+			if (isEffectiveChildren()) {
+				query().display(this);
+				result = true;
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * @param toggleFacetResult
+	 *            Used to return information: .result == return value non-empty
+	 *            & .errorMsg
+	 *
+	 * @return children that were selected (polarity true only). If fromChild is
+	 *         null, only select toChild.
+	 */
+	public @NonNull Collection<Perspective> selectInterveningFacets(final @Nullable Perspective fromChild,
+			final @NonNull Perspective toChild, final boolean polarity,
+			final @NonNull ToggleFacetResult toggleFacetResult) {
+		assert polarity;
+		final Collection<Perspective> selected = new HashSet<>();
+		if (fromChild != null) {
+			if (toChild.validateArrowFocus(fromChild)) {
+				final int toWhichChild = toChild.whichChildRaw;
+				final int fromWhichChild = fromChild.whichChildRaw;
+				final int lowWhichChild = Math.min(toWhichChild, fromWhichChild);
+				final int highWhichChild = Math.max(toWhichChild, fromWhichChild);
+				try {
+					for (int whichChild = lowWhichChild; whichChild <= highWhichChild; whichChild++) {
+						final Perspective child = getRawNthChild(whichChild);
+						assert child != null;
+						if (!isRestriction(child, polarity)) {
+							selected.add(child);
+							selectFacet(child, polarity);
+						}
+					}
+				} catch (final AssertionError e) {
+					System.err.println("While Perspective.selectInterveningFacets " + this + " " + fromChild + " to "
+							+ toChild + ":\n");
+					throw (e);
+				}
+			} else {
+				toggleFacetResult.result = false;
+				toggleFacetResult.errorMsg = fromChild + " to " + toChild + " is not a sensible interval to select.";
+			}
+		} else {
+			assert !isRestriction(toChild, polarity) : "Perspective.selectInterveningFacets problem";
+			selected.add(toChild);
+			selectFacet(toChild, polarity);
+		}
+		assert selected
+				.isEmpty() == !toggleFacetResult.result : "Perspective.selectInterveningFacets nothing to select! "
+						+ this + "\n from-toChild range:\n  " + fromChild + "\n - " + toChild + "\n polarity="
+						+ polarity + " " + "\n isRestriction(toChild, polarity)=" + isRestriction(toChild, polarity)
+						+ "\n toggleFacetResult=" + toggleFacetResult + "\n selected=" + selected;
+		return selected;
+	}
+
+	/**
+	 * @param potentialArrowFocus
+	 *            not necessarily art.arrowFocus
+	 * @return true.
+	 *
+	 *         Throws an AssertionError unless arrowFocus!=null and its parent
+	 *         or grandparent is non-null and the same as ours.
+	 */
+	public boolean validateArrowFocus(final @Nullable Perspective potentialArrowFocus) {
+		assert potentialArrowFocus != null && getParent() != null
+				&& (potentialArrowFocus.getParent() == getParent() || (getGrandParent() != null
+						&& potentialArrowFocus.getGrandParent() == getGrandParent())) : "arrowFocus="
+								+ (potentialArrowFocus != null ? potentialArrowFocus.path() : "<null>") + "\n this="
+								+ path();
+		return true;
+	}
+
+	/**
+	 * If polarity, select ancestors, too.
+	 *
+	 * @return Returns true if it changed the query, which it alway does.
+	 */
+	public boolean selectFacet(final @NonNull Perspective child, final boolean polarity) {
+		if (polarity && parent != null && !isRestriction(polarity)) {
+			assert parent != null;
+			parent.selectFacet(this, polarity);
+		}
+		addRestriction(child, polarity);
+		return true;
+	}
+
+	private void addRestriction(final @NonNull Perspective child, final boolean polarity) {
+		assert assertIsChild(child);
+		instantiatedPerspective.restrictions().add(child, polarity);
+	}
+
+	/**
+	 * This is only called by Query.restrictData(). All children have already
+	 * been restrictData()'ed.
+	 */
+	public void restrictData() {
+		if (isInstantiated()) {
+			int childCumOnCount = 0;
+			int maxChildCount = -1;
+			for (final Perspective child : instantiatedPerspective.getChildrenRaw()) {
+				if (child != null) {
+					final int childOnCount = child.getOnCount();
+					if (childOnCount > maxChildCount) {
+						maxChildCount = childOnCount;
+					}
+					childCumOnCount += childOnCount;
+					child.cumTotalCount = childCumOnCount;
+				}
+			}
+			setTotalChildTotalCount(childCumOnCount);
+			setMaxChildTotalCount(maxChildCount);
+			clearRestrictions();
+			decacheLettersOffsets();
+		}
+	}
+
+	private void addChildFacet(final @NonNull Perspective child) {
+		if (needsChildrenOffset()) {
+			query.importFacet(facet_id);
+		}
+		instantiatedPerspective.addChildFacet(child);
+	}
+
+	/**
+	 * Only called by Rank, and parentTotal/OnCount are rank's total/onCount
+	 *
+	 * @return log(constrainOddsRatio()), or 0.0 if the resulting ChiSq2x2 is
+	 *         known to be uninformative..
+	 */
+	public double constrainedLogOddsRatio(final int parentTotalCount, final int parentOnCount) {
+		final double constrainedOddsRatio = constrainOddsRatio(parentTotalCount, parentOnCount);
+		final double constrainedLogOddsRatio = Math.log(constrainedOddsRatio);
+		assert Math.abs(constrainedLogOddsRatio / Perspective.LOG_ODDS_RANGE) <= 1.0 : constrainedLogOddsRatio + " "
+				+ constrainedOddsRatio;
+		assert query().isExtensionallyRestricted() || constrainedLogOddsRatio == 0.0;
+		return constrainedLogOddsRatio;
+	}
+
+	/**
+	 * Only called by logConstrainedOddsRatio()
+	 *
+	 * @return odds ratio constrained to [1.0 / ODDS_RANGE, ODDS_RANGE], or 1.0
+	 *         if the resulting ChiSq2x2 is known to be uninformative.
+	 */
+	private double constrainOddsRatio(final int parentTotalCount, final int parentOnCount) {
+		double result = 1.0;
+		final ChiSqParams chiSqParams = ChiSqParams.getChiSqParams(parentTotalCount, parentOnCount, getTotalCount(),
+				getOnCount());
+		if (chiSqParams != null) {
+			final double oddsGivenNotEvent = chiSqParams.b() * chiSqParams.c();
+			result = (oddsGivenNotEvent == 0.0) ? Double.POSITIVE_INFINITY
+					: chiSqParams.a() * chiSqParams.d() / oddsGivenNotEvent;
+			result = UtilMath.constrain(result, INVERSE_ODDS_RANGE, ODDS_RANGE);
+		}
+		assert !query.isQueryValid() || query.isExtensionallyRestricted() || result == 1.0 : query.getName(null) + "\n "
+				+ path(true, true) + " parentTotalCount=" + parentTotalCount + " parentOnCount=" + parentOnCount
+				+ " getTotalCount=" + getTotalCount() + " getOnCount=" + getOnCount()
+				+ " query.isExtensionallyRestricted()=" + query.isExtensionallyRestricted() + " result=" + result + "\n"
+				+ chiSqParams;
+		return result;
+	}
+
+	/**
+	 * @return {@link BungeeConstants#SIGNIFICANCE_POSITIVE} or
+	 *         {@link BungeeConstants#SIGNIFICANCE_NEGATIVE} or
+	 *         {@link BungeeConstants#SIGNIFICANCE_UNASSOCIATED}
+	 */
+	@SuppressWarnings("javadoc")
+	public @NonNull Significance pValueSignificance(final int queryVersion) {
+		assert queryVersion > 0;
+		final ChiSq2x2 chiSq2x2 = getpValueChiSq2x2(queryVersion, null);
+		assert chiSq2x2 != null;
+		final Significance result = significance(query.getBonferroniThreshold(), chiSq2x2);
+		assert result == Significance.UNASSOCIATED || (getOnCount() >= 0 && parentOnCount() >= 0) : this
+				+ " queryVersion=" + query().version() + "\n getOnCount(callback)=" + getOnCount()
+				+ "\n parentOnCount(callback)=" + parentOnCount() + "\n result=" + result + "\n threshold="
+				+ query.getBonferroniThreshold() + "\n pValue=" + pValue(queryVersion) + "\n getOnCount=" + getOnCount()
+				+ "\n parentOnCount=" + parentOnCount() + "\n getpValueChiSq2x2:"
+				+ Util.nonNull(getpValueChiSq2x2(queryVersion, null)).printTable();
+		return result;
+	}
+
+	/**
+	 * @return the p-value in [0, POSITIVE_INFINITY]
+	 */
+	public double correctedPvalue() {
+		return query.correctedPvalue(pValue(query.version()));
+	}
+
+	/**
+	 * @return the p-value in [0, POSITIVE_INFINITY]
+	 */
+	double pValue(final int queryVersion) {
+		assert queryVersion > 0;
+		final ChiSq2x2 chiSq2x2 = getpValueChiSq2x2(queryVersion, null);
+		assert chiSq2x2 != null;
+		return chiSq2x2.pvalue();
+	}
+
+	private static @NonNull Significance significance(final double threshold, final @NonNull ChiSq2x2 chiSq2x2) {
+		Significance result = Significance.UNASSOCIATED;
+		if (chiSq2x2.pvalue() <= threshold) {
+			result = chiSq2x2.sign() > 0 ? Significance.POSITIVE : Significance.NEGATIVE;
+		}
+		return result;
+	}
+
+	/**
+	 * Sets fields pValueChiSq2x2 and pValueQueryVersion.
+	 *
+	 * @return pValueChiSq2x2, or null (and call callback) iff query invalid.
+	 */
+	@Nullable
+	ChiSq2x2 getpValueChiSq2x2(final int queryVersion, final @Nullable RedrawCallback callback) {
+		ChiSq2x2 result = null;
+		if (queryVersion < 0) {
+			if (callback != null) {
+				query().queueRedraw(callback);
+			}
+		} else {
+			if (pValueQueryVersion != queryVersion) {
+				final ChiSqParams chiSqParams = ChiSqParams.getChiSqParams(parentTotalCount(), parentOnCount(),
+						getTotalCount(), getOnCount());
+				pValueChiSq2x2 = chiSqParams != null ? chiSqParams.getChiSq() : ChiSq2x2.UNINFORMATIVE_CHI_SQ_2X2;
+				pValueQueryVersion = queryVersion;
+			}
+			result = pValueChiSq2x2;
+		}
+		return result;
+	}
+
+	/**
+	 * @param isConditional
+	 *            Want median according to onCount or totalCount?
+	 *
+	 * @return The median child, or null if query is invalid or no items satisfy
+	 *         this predicate.
+	 */
+	public @Nullable Perspective getMedianPerspective(final boolean isConditional) {
+		return instantiatedPerspective.getMedianPerspective(isConditional);
+	}
+
+	/**
+	 * @return the p-value that the conditional median is different from the
+	 *         unconditional median.
+	 */
+	public double medianPvalue() {
+		return getMedianChiSq2x2().pvalue();
+	}
+
+	// /**
+	// * @param threshold
+	// * @return {@link BungeeConstants#SIGNIFICANCE_POSITIVE} or
+	// * {@link BungeeConstants#SIGNIFICANCE_NEGATIVE} or
+	// * {@link BungeeConstants#SIGNIFICANCE_UNASSOCIATED}
+	// */
+	// @SuppressWarnings("javadoc")
+	// @NonNull
+	// Significance medianPvalueSignificance(final double threshold) {
+	// return significance(threshold,
+	// instantiatedPerspective.getMedianChiSq2x2());
+	// }
+
+	/**
+	 * Is this facet's conditional median significantly different from its
+	 * unconditional median?
+	 *
+	 * @return {@link BungeeConstants#SIGNIFICANCE_POSITIVE} or
+	 *         {@link BungeeConstants#SIGNIFICANCE_NEGATIVE} or
+	 *         {@link BungeeConstants#SIGNIFICANCE_UNASSOCIATED}
+	 */
+	@SuppressWarnings("javadoc")
+	public @NonNull Significance medianTestSignificance() {
+		return significance(query().getBonferroniMedianThreshold(), getMedianChiSq2x2());
+	}
+
+	private @NonNull ChiSq2x2 getMedianChiSq2x2() {
+		return instantiatedPerspective.getMedianChiSq2x2();
+	}
+
+	/**
+	 * Maybe add this Perspective to TopTags.
+	 *
+	 * @param isRecurseOnDisplayedChildren
+	 *            whether to recurse on all children of displayed Perspectives
+	 *            whose total count is less than its parent's. true for
+	 *            TopTagsViz; false for Explanation.
+	 *
+	 * @return whether all totalCounts are cached.
+	 */
+	public boolean updateTopTags(final @NonNull TopTags topTags, final int queryVersion,
+			final boolean isRecurseOnDisplayedChildren, final @Nullable RedrawCallback callback) {
+		boolean areCountsCached = true;
+		final int parentTotalCount = parentTotalCount();
+		if (parentTotalCount > getTotalCount() && !(isRecurseOnDisplayedChildren && isRestriction())
+				&& isInstantiated()) {
+			final ChiSq2x2 chiSq = getpValueChiSq2x2(queryVersion, callback);
+			if (chiSq == null) {
+				areCountsCached = false;
+			} else if (!Double.isNaN(chiSq.chiSq())) {
+				final boolean siblingSelected = parent != null && parent.isRestricted();
+				if ((chiSq.sign() > 0 || !siblingSelected)) {
+					final double relativePhi = chiSq.myCramersPhi() / Math.sqrt(parentTotalCount);
+					assert !Double.isNaN(relativePhi) : this + " myCramersPhi=" + chiSq.myCramersPhi()
+							+ " parentTotalCount=" + parentTotalCount;
+					topTags.maybeAdd(chiSq, relativePhi, this);
+				}
+			}
+		}
+		if (areCountsCached && isRecurseOnDisplayedChildren && prefetchStatus() != PrefetchStatus.PREFETCHED_NO
+				&& isDisplayed()) {
+			final int onCount = getOnCount();
+			if (onCount < getTotalCount() && onCount > 0) {
+				for (final Perspective child : getChildrenRaw()) {
+					if (child.getTotalCount() > 0
+							&& !child.updateTopTags(topTags, queryVersion, isRecurseOnDisplayedChildren, callback)) {
+						areCountsCached = false;
 					}
 				}
 			}
-			if (!found) {
-				assert child != null;
-				result.add(child);
-			}
 		}
-		if (!isLocalOnly && !require) {
-			for (Iterator<Perspective> it = query().displayedPerspectives()
-					.iterator(); it.hasNext();) {
-				Perspective child = it.next();
-				if (child.getParent() == this) {
-					result.addAll(child.getRestrictionFacetInfos(isLocalOnly,
-							require));
+		return areCountsCached;
+	}
+
+	/**
+	 * @return the most recent ancestor (including this) that isDisplayed()
+	 */
+	public @NonNull Perspective lowestAncestorPVp() {
+		if (isDisplayed()) {
+			return this;
+		} else {
+			assert parent != null;
+			return parent.lowestAncestorPVp();
+		}
+	}
+
+	/**
+	 * @return Set can be modified.
+	 */
+	public @NonNull SortedSet<Perspective> getRestrictionFacetInfos(final boolean polarity) {
+		final SortedSet<Perspective> result = new TreeSet<>();
+		if (nRestrictions() > 0) {
+			for (final Perspective child : restrictions(polarity)) {
+				assert child != null;
+				assertIsChild(child);
+				boolean found = false;
+				if (polarity && child.isDisplayed()) {
+					final SortedSet<Perspective> childResult = child.getRestrictionFacetInfos(true);
+					result.addAll(childResult);
+					found = childResult.size() > 0;
+				}
+				if (!found) {
+					result.add(child);
 				}
 			}
 		}
-		// Util.print("getRestrictionFacetInfos return "
-		// + Util.valueOfDeep(result));
+		if (!polarity) {
+			// Excludes don't propagate up; have to check everywhere.
+			for (final Perspective child : query().displayedPerspectives()) {
+				if (child.getParent() == this) {
+					result.addAll(child.getRestrictionFacetInfos(false));
+				}
+			}
+		}
 		return result;
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#percentOn()
-	 */
-	public double percentOn() {
-		int c = getOnCount();
-		assert totalCount > 0 : this + " " + totalCount;
-		assert c >= 0 : this + " " + getParent() + " " + c + "/" + totalCount
-				+ " " + query().isQueryValid();
-		assert c <= totalCount : this + " " + c + "/" + totalCount;
-		return c / (double) totalCount;
+	private boolean assertIsChild(final @NonNull Perspective child) {
+		assert child.getParent() == this : this + " " + child.path();
+		return true;
 	}
 
-	void incfChildren(int delta) {
-		assert query().isEditable();
-		instantiatedPerspective.incfChildren(delta);
+	public static @NonNull String path(final @NonNull Collection<Perspective> facets) {
+		final StringBuilder buf = new StringBuilder("Collection<Perspective>:");
+		for (final Perspective facet : facets) {
+			buf.append("\n   ").append(facet.path());
+		}
+		buf.append("\n");
+		return Util.nonNull(buf.toString());
 	}
-
-	// public void sortDataIndexByIndex() {
-	// instantiatedPerspective.sortDataIndexByIndex();
-	// }
-
-	void addFacet(int index, Perspective facet) {
-		// Util.print("addFacet " + this + " " + index + " " + facet);
-		ensureInstantiatedPerspective().addFacet(index, facet);
-	}
-
-	// /**
-	// * sort dataIndexByOn by decreasing onCount
-	// */
-	// public void sortDataIndexByOn() {
-	// instantiatedPerspective.sortDataIndexByOn(this);
-	// }
-
-	// boolean isDataIndexByOnComplete() {
-	// for (int i = 0; i < nChildren(); i++) {
-	// getNthOnValue(i, true); // Will error if result would be null
-	// }
-	// return true;
-	// }
-
-	void addFacetAllowingNulls(Perspective facet) {
-		instantiatedPerspective.addFacetAllowingNulls(facet);
-	}
-
-	// public boolean isSortedByOn() {
-	// return instantiatedPerspective.isSortedByOn;
-	// }
-	//
-	// /**
-	// * @param perspectives
-	// * facets to sort in decreasing order of onCount
-	// */
-	// public static void sortByOn(Perspective[] perspectives) {
-	// InstantiatedPerspective.sortByOn(perspectives);
-	// }
 
 	/**
-	 * @param ancestor
-	 * @return is ancestor this perspective or an ancestor of this perspective?
+	 * @return path without showIsDisplayed or showCounts
 	 */
-	public boolean hasAncestor(ItemPredicate ancestor) {
-		return (ancestor == this)
-				|| (parent != null && parent.hasAncestor(ancestor));
+	public @NonNull String path() {
+		return path(false, false);
 	}
 
-	public ChiSq2x2 pValueCounts() {
-		return ensureInstantiatedPerspective().pValueCounts();
+	public @NonNull String path(final boolean showIsDisplayed, final boolean showCounts) {
+		return path(showIsDisplayed, showCounts, false);
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#pValue()
+	/**
+	 * @return "<facet type> -- <ancestor> ... <ancestor> -- <this>"
+	 *
+	 *         Used for bookmarking.
 	 */
-	public double pValue() {
-		return ensureInstantiatedPerspective().pValue();
-	}
+	public @NonNull String path(final boolean showIsDisplayed, final boolean showCounts, final boolean isNameOnly) {
+		String result;
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#percentageRatio()
-	 */
-	public double percentageRatio() {
-		return ensureInstantiatedPerspective().percentageRatio();
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see query.ItemPredicate#chiColorFamily(double)
-	 */
-	public int chiColorFamily(double p) {
-		int result = 0;
-		if (// isBigDeal() &&
-		ensureInstantiatedPerspective().pValue() <= p) {
-			result = ensureInstantiatedPerspective().pValueSign();
-		}
-		assert result == 0 || (getOnCount() >= 0 && parentOnCount() >= 0) : this
-				+ " " + getOnCount() + " " + getOnCount() + " " + onCount;
-		return result;
-	}
-
-	private static final double SIGMOID_STEEPNESS = 1.0;
-
-	private static final double SIGMOID_MIN = 1.0 / (1.0 + Math.pow(Math.E,
-			SIGMOID_STEEPNESS / 2.0));
-
-	private static final double SIGMOID_SCALE = 1.0 - 2.0 * SIGMOID_MIN;
-
-	static double unwarp(double y, double expectedPercent) {
-		if (y == 0.0 || y == 1.0)
-			return y;
-		y = y * SIGMOID_SCALE + SIGMOID_MIN;
-		double result = Math.pow(0.5 - Math.log(1.0 / y - 1.0)
-				/ SIGMOID_STEEPNESS, 1.0 / warpPower(expectedPercent));
-		// if (getName().equals("Genre"))
-		// Util.print("unwarp " + warpPower + " y=" + x + " => " + y + " "
-		// + result + " inv=" + warp(result));
-		return result;
-	}
-
-	static double warpPower(double expectedPercent) {
-		double warpPower;
-		// if (warpPower < 0) {
-		if (expectedPercent > 0.0 && expectedPercent < 1.0) {
-			warpPower = -Math.log(2) / Math.log(expectedPercent);
+		// avoid infinite recursion
+		if (showCounts && !Query.isPrefetching()) {
+			// This isn't the prefetch thread
+			synchronized (query().prefetchingLock) {
+				result = pathInternal(showIsDisplayed, showCounts, isNameOnly);
+			}
 		} else {
-			warpPower = 1.0;
+			// We'll use on/totalCount instead of getOn/getTotalCount.
+			result = pathInternal(showIsDisplayed, showCounts, isNameOnly);
 		}
-		// }
-		assert warpPower > 0.0 : expectedPercent + " " + warpPower;
-		return warpPower;
+		return result;
 	}
 
-	// void computeBigDeals() {
-	// double expectedPercent = percentOn();
-	// positiveBigDeal = unwarp(0.55, expectedPercent);
-	// negativeBigDeal = unwarp(0.45, expectedPercent);
-	// // Util.print("Big deals " + this + " " + negativeBigDeal + "-" +
-	// // positiveBigDeal);
-	// }
-
-	// static double warp(double observedPercent, double expectedPercent) {
-	// if (observedPercent == 0.0 || observedPercent == 1.0)
-	// return observedPercent;
-	// double powWarped = Math
-	// .pow(observedPercent, warpPower(expectedPercent));
-	// double result = 1.0 / (1.0 + Math.pow(Math.E, SIGMOID_STEEPNESS
-	// * (0.5 - powWarped)));
-	// result = (result - SIGMOID_MIN) / SIGMOID_SCALE;
-	// // if (getName().equals("Genre"))
-	// // Util.print(warpPower + " " + expectedPercentOn() + " percent="
-	// // + percent + " " + powWarped + " " + result);
-	// return result;
-	// }
-
-	// private double positiveBigDeal;
-	// private double negativeBigDeal;
-	//
-	// boolean isBigDeal() {
-	// // ItemPredicate expectationParent = parent != null ? parent
-	// // : (ItemPredicate) getQuery();
-	// // return Math.abs(warp(percentOn(), expectationParent.percentOn()) -
-	// // 0.5) > 0.1;
-	// boolean result = false;
-	// if (query().isQueryValid() && getOnCount() >= 0 && totalCount > 0) {
-	// // Deeply nested facets will have onCount < 0
-	// if (parent == null)
-	// result = query().isBigDeal(percentOn());
-	// else
-	// result = parent.isBigDeal(percentOn());
-	// }
-	// return result;
-	// }
-	//
-	// boolean isBigDeal(double obervedPercent) {
-	// return obervedPercent > positiveBigDeal
-	// || obervedPercent < negativeBigDeal;
-	// }
-
-	// public int chiColorFamily(double p) {
-	// int result = 0;
-	// int[][] table = chiSqTable();
-	// if (table != null && ChiSqr.significant(table, p)) {
-	// int facetTotal = table[0][0] + table[1][0];
-	// int on = table[0][0] + table[0][1];
-	// int total = on + table[1][0] + table[1][1];
-	// double expected = facetTotal * (on / (double) total);
-	// assert expected >= 0;
-	// result = (expected > table[0][0]) ? -1 : 1;
-	// // Util.print(facet + " " +
-	// // Util.valueOfDeep(table) +
-	// // " "
-	// // + ChiSqr.pValue(table) + " " + facetTotal + " " +
-	// // expected + " " + result);
-	// }
-	// return result;
-	// }
-	//
-	// public int[][] chiSqTable() {
-	// Query q = getQuery();
-	// // if (facet.parent == null) {
-	// // Util.print("chiColorFamily " + facet + " " + q.isQueryValid() + " " +
-	// // q.onCount + " " + facet.getOnCount());
-	// // }
-	// if (q.isQueryValid() && q.isRestricted()) {
-	// int total;
-	// int on;
-	// if (parent != null) {
-	// total = parent.totalCount;
-	// on = parent.onCount;
-	// } else {
-	// total = q.totalCount;
-	// on = q.onCount;
-	// }
-	// if (total > on && onCount >= 0) {
-	// // Deeply nested facets have on=-1;
-	// // int facetOn = getOnCount();
-	// // if (onCount >= 0) {
-	// // int facetTotal = getTotalCount();
-	// // assert facetTotal >= 0;
-	//
-	// int otherOn = on - onCount;
-	// int facetOff = totalCount - onCount;
-	// int otherOff = total - on - facetOff;
-	// assert otherOn >= 0 : this + " " + parent + " " + total
-	// + " " + on + " " + onCount + " " + totalCount + " "
-	// + otherOn;
-	// assert q.findPerspective(facet_id) == this : this;
-	// assert otherOff >= 0 : this + " " + total + " " + on + " "
-	// + onCount + " " + totalCount + " " + otherOff;
-	// assert facetOff >= 0 : this + " " + facetOff;
-	// int[][] table = { { onCount, otherOn },
-	// { facetOff, otherOff } };
-	// return table;
-	// // }
-	// }
-	// }
-	// return null;
-	// }
-
-	// /**
-	// * @return is it sensible for Tetrad to conclude that another Perspective
-	// * causes this one?
-	// */
-	// public boolean isCausable() {
-	// return query().isCausable(this);
-	// }
-
-	/**
-	 * @return does this Perspective have a natural ordering (like Date or
-	 *         Rating)?
-	 */
-	public boolean isOrdered() {
-		return query().isOrdered(this);
+	private @NonNull String pathInternal(final boolean showIsDisplayed, final boolean showCounts,
+			final boolean isNameOnly) {
+		String result = pathInternal2(showIsDisplayed, showCounts, isNameOnly);
+		if (parent != null) {
+			result = parent.path(showIsDisplayed, showCounts, isNameOnly) + Compile.FACET_HIERARCHY_SEPARATOR + result;
+		}
+		return result;
 	}
 
-	public int compareTo(ItemPredicate arg0) {
-		// return indexComparator.compare(this, arg0);
-		if (arg0 instanceof Perspective)
-			return getID() - ((Perspective) arg0).getID();
-		else
-			return 1;
+	private @NonNull String pathInternal2(final boolean showIsDisplayed, final boolean showCounts,
+			final boolean isNameOnly) {
+		if (isNameOnly) {
+			return getNameNow();
+		}
+		final StringBuilder buf = new StringBuilder();
+		buf.append(getNameIfCached()).append(" (").append(getServerID());
+		if (showIsDisplayed) {
+			buf.append("; prefetchStatus=").append(prefetchStatus());
+			buf.append("; isDisplayed=").append(isDisplayed());
+		}
+		if (showCounts) {
+			buf.append(";");
+			if (!query().isQueryValid()) {
+				buf.append(" <query invalid>");
+			} else {
+				if (Query.isPrefetching()) {
+					buf.append(" isPrefetching");
+				}
+				buf.append(" onCount/TotalCount=").append(getOnCount()).append("/").append(getTotalCount());
+			}
+		}
+		buf.append(")");
+		String result = UtilString.toString(this, buf);
+		if (showIsDisplayed || showCounts) {
+			result += "\n";
+		}
+		return result;
 	}
 
-	// public int compareTo(ItemPredicate caused) {
-	// return (caused instanceof Perspective) ? compareTo((Object) caused) : 1;
-	// }
+	public @NonNull String queuePrefetchErrMsg(final @NonNull FetchType fetchType) {
+		return "\n path=" + path(true, true) + "\n fetchType=" + fetchType + "\n prefetchedStatusFromFetchType="
+				+ prefetchedStatusFromFetchType(fetchType) + "\n prefetchStatus=" + prefetchStatus() + "\n isDisplayed="
+				+ isDisplayed() + "\n isRestrictedData=" + query().isRestrictedData();
+	}
 
 	@Override
-	public boolean equals(Object arg0) {
-		return arg0 instanceof Perspective
-				&& compareTo((ItemPredicate) arg0) == 0;
+	public int compareTo(final ItemPredicate o) {
+		if (o instanceof Perspective) {
+			return facet_id - ((Perspective) o).facet_id;
+		} else {
+			return compareBy().compareTo(o.compareBy());
+		}
 	}
+
+	@Override
+	public @NonNull Perspective compareBy() {
+		return this;
+	}
+
+	@Override
+	public @NonNull YesNoMaybe isPlural() {
+		return YesNoMaybe.MAYBE;
+	}
+
+	@Override
+	public @NonNull YesNoMaybe isNegated() {
+		return YesNoMaybe.MAYBE;
+	}
+
+	@Override
+	public @NonNull Perspective fromPerspective() {
+		return this;
+	}
+
+	@Override
+	public @NonNull Perspective toPerspective() {
+		return this;
+	}
+
+	// ***********************************************************************
+	// ************* Methods that are only called when editing ***************
+	// ***********************************************************************
+
+	public @Nullable Perspective updateIDnCountPrefetched(final int newID, final int totalCount, final int offset) {
+		Perspective result = null;
+		decacheLettersOffsets();
+		setID(newID);
+		setChildrenOffset(offset);
+		assert totalCount >= 0;
+		setTotalCount(totalCount);
+		if (prefetchStatus() != PrefetchStatus.PREFETCHED_NO) {
+			result = this;
+		}
+		if (parent != null) {
+			parent.addChildFacet(this);
+		}
+		return result;
+	}
+
+	private void setID(final int _facet_id) {
+		if (query().isEditable()) {
+			facet_id = _facet_id;
+		} else {
+			throw (new UnsupportedOperationException("Can't change facet_id of " + this));
+		}
+	}
+
+	public void reparent(final @NonNull Perspective child) {
+		final Perspective parent2 = child.getParent();
+		assert parent2 != null;
+		parent2.incfChildren(-1);
+		incfChildren(1);
+		child.setParent(this);
+	}
+
+	public void incfChildren(final int delta) {
+		assert query().isEditable();
+		setNchildren(nChildrenRaw + delta);
+	}
+
+	private void setParent(final @Nullable Perspective _parent) {
+		assert query().isEditable();
+		parent = _parent;
+	}
+
+	// ************************************************************************
+	// ********** End of Methods that are only called when editing ************
+	// ************************************************************************
 
 	@Override
 	public int hashCode() {
 		return getID();
 	}
 
-	/**
-	 * @return an array of our children sorted from highest onCount to lowest.
-	 */
-	public Perspective[] getChildren() {
-		return instantiatedPerspective.getChildren();
+	@Override
+	public @Nullable Markup description() {
+		return null;
 	}
 
-	void updateTopTags(TopTags top, int parentTotalCount, int parentOnCount) {
-		assert query().isQueryValid();
-		updateTopTags(top, parentTotalCount, parentOnCount, onCount);
-		if (onCount < getTotalCount() && nChildren() > 0 && isPrefetched()
-				&& onCount > 0 && isDisplayed()) {
-			for (Iterator<Perspective> it = getChildIterator(); it.hasNext();) {
-				Perspective child = it.next();
-				assert child != Perspective.this;
-				child.updateTopTags(top, getTotalCount(), onCount);
-			}
-		}
+	@Override
+	public @Nullable MarkupElement pluralize() {
+		return getMarkupElement(true, false);
 	}
 
-	public void updateTopTags(TopTags top, int parentTotalCount,
-			int parentOnCount, int _onCount) {
-		// Util.print("updateTopTags " + this);
-		try {
-			int total = getTotalCount();
-			if (true || _onCount < total) {
-				if (total < parentTotalCount && !isRestriction()) {
-					if (instantiatedPerspective != null) {
-						// assert instantiatedPerspective.checkTable(
-						// parentTotalCount, parentOnCount, total,
-						// _onCount);
-						// Util.print(instantiatedPerspective.checkTableMsg(
-						// parentTotalCount, parentOnCount, total, onCount));
-						ChiSq2x2 chiSq = getChiSq(parentTotalCount,
-								parentOnCount, total, _onCount);
-						boolean siblingSelected = parent != null
-								&& parent.isRestricted();
-						if (chiSq.sign() > 0 || !siblingSelected) {
-							double myCramersPhi = chiSq.myCramersPhi();
-							double relativePhi = myCramersPhi
-									/ Math.sqrt(parentTotalCount());
-							top.maybeAdd(chiSq, relativePhi);
-						}
-					}
-				}
-			}
-		} catch (AssertionError e) {
-			// Do our best even if query is invalid, but ignore errors this
-			// causes
-			if (query().isQueryValid())
-				throw (e);
-		}
+	@Override
+	public @NonNull ItemPredicate negate() {
+		return getMarkupElement(false, true);
 	}
 
-	ChiSq2x2 getChiSq(int parentTotalCount, int parentOnCount, int total,
-			int _onCount) {
-		assert query().isQueryValid();
-		assert _onCount <= total : _onCount + " " + total;
-		assert parentOnCount <= parentTotalCount : parentOnCount + " "
-				+ parentTotalCount;
-		ChiSq2x2 chiSq = ChiSq2x2.getInstance(this, parentTotalCount,
-				parentOnCount, total, _onCount, query());
-		return chiSq;
+	@Override
+	public @Nullable MarkupElement merge(final @NonNull MarkupElement nextElement) {
+		return getMarkupElement().merge(nextElement);
 	}
 
-	public static class TopTags {
-		final int n;
-		private double topThreshold = Double.POSITIVE_INFINITY;
-		private double bottomThreshold = Double.NEGATIVE_INFINITY;
-
-		// public final Map top = new Hashtable();
-		// public final Map bottom = new Hashtable();
-		// private Object topThresholdFacet;
-		// private Object bottomThresholdFacet;
-
-		public static class TagRelevance {
-			public final ChiSq2x2 tag;
-			public final double relevance;
-
-			public TagRelevance(ChiSq2x2 o, double _relevance) {
-				tag = o;
-				relevance = _relevance;
-				// assert tag instanceof ChiSq2x2;
-			}
-
-			public double relevanceScore() {
-				return Util.sgn(relevance) * 100 * Math.pow(Math.abs(relevance
-				/* / maxRelevance(facet) */), 0.25);
-			}
-
-			@Override
-			public String toString() {
-				return "<TagRelevance " + relevance + " " + tag.object + ">";
-			}
-		}
-
-		private static final Comparator<TagRelevance> entryComparator = new EntryComparator();
-		public final SortedSet<TagRelevance> top = new TreeSet<TagRelevance>(
-				entryComparator);
-		public final SortedSet<TagRelevance> bottom = new TreeSet<TagRelevance>(
-				entryComparator);
-
-		public TopTags(int _n) {
-			assert _n > 0;
-			n = _n;
-		}
-
-		final static class EntryComparator extends
-				DoubleValueComparator<TagRelevance> {
-			@Override
-			public double value(TagRelevance data) {
-				return data.relevance;
-			}
-		}
-
-		public Iterator<TagRelevance> topIterator() {
-			return top.iterator();
-		}
-
-		/**
-		 * @param o
-		 *            the object having the score
-		 * @param score
-		 *            any monotonically increasing relevance function, where
-		 *            positive influences are greater than zero, and vice versa.
-		 */
-		void maybeAdd(ChiSq2x2 o, double score) {
-			if (score > 0) {
-				if (top.size() < n || score > topThreshold) {
-					if (top.size() == n) {
-						// assert topx.containsKey(topThresholdFacet);
-						top.remove(top.last());
-						assert top.size() < n : topThreshold + " " + top;
-					}
-					top.add(new TagRelevance(o, score));
-					topThreshold = top.last().relevance;
-					// updateTopThreshold();
-					// assert top.size() < n || topThresholdFacet != null :
-					// top.size()
-					// + " " + n + " " + this;
-					assert top.size() <= n : topThreshold + " " + top;
-				}
-				assert top.size() <= n : top;
-			} else {
-				if (bottom.size() < n || score < bottomThreshold) {
-					if (bottom.size() == n) {
-						// assert bottom.containsKey(bottomThresholdFacet);
-						bottom.remove(bottom.first());
-						assert bottom.size() < n : bottomThreshold + " "
-								+ bottom;
-					}
-					bottom.add(new TagRelevance(o, score));
-					bottomThreshold = bottom.first().relevance;
-				}
-			}
-		}
-
-		/*
-		 * (non-Javadoc)
-		 * 
-		 * @see java.lang.Object#toString()
-		 */
-		@Override
-		public String toString() {
-			StringBuffer buf = new StringBuffer();
-			String heading = ChiSq2x2.statisticsHeading();
-			topTagsStringInternal(heading + "\nTop ", top, buf);
-			buf.append("\n");
-			topTagsStringInternal("Bottom ", bottom, buf);
-			return buf.toString();
-		}
-
-		private void topTagsStringInternal(String which,
-				Set<TagRelevance> whichSet, StringBuffer buf) {
-			if (whichSet.size() > 0) {
-				buf.append(which).append(whichSet.size()).append(" tags:\n");
-				for (Iterator<TagRelevance> it = whichSet.iterator(); it
-						.hasNext();) {
-					TagRelevance tagRelevance = it.next();
-					ChiSq2x2 pvalue = tagRelevance.tag;
-					pvalue.statisticsLine(buf).append("\n");
-				}
-			}
-		}
+	@Override
+	public boolean shouldUnderline() {
+		return true;
 	}
 
-	final class InstantiatedPerspective {
-
-		String name;
-
-		/**
-		 * The children will have consecutive facet_id's, starting one after
-		 * this. Should only change if isEditable
-		 */
-		int children_offset = -1;
-
-		/**
-		 * Whether children's names are ordered by facet_id. The interface will
-		 * only zoom by prefixes if so.
-		 */
-		boolean isAlphabetic = false;
-
-		/**
-		 * Should only change if isEditable
-		 */
-		int nChildren = 0;
-
-		/**
-		 * Used to determine whether ChiSqr table is up to date
-		 */
-		private int updateIndex = 0;
-
-		private ChiSq2x2 pValueCounts;
-
-		private ChiSq2x2 medianPvalue;
-
-		boolean isPrefetched = false;
-
-		/**
-		 * Maps from a prefix string to a map from the next letter to the last
-		 * child with that letter.
-		 */
-		Map<CollationKey, Map<CollationKey, Perspective[]>> lettersOffsets = new HashMap<CollationKey, Map<CollationKey, Perspective[]>>();
-
-		Perspective[] dataIndex;
-
-		/**
-		 * Query is filtered to return only results with one of these tags.
-		 * Ordered FIFO, to support selecting with SHIFT.
-		 */
-		Restrictions restrictions;
-
-		/**
-		 * object, meta, or content. Used to generate query description.
-		 */
-		final String descriptionCategory;
-
-		/**
-		 * Pattern into which facet name is substituted for '~'. Default is
-		 * implicitly [descriptionPreposition ~, NOT descriptionPreposition ~].
-		 * Used to generate query description.
-		 */
-		final String[] descriptionPreposition;
-
-		final Query q;
-
-		// Vector descriptions = null;
-
-		// Vector filterDescription = null;
-
-		// /**
-		// * -1 not sorted 0 sorted by index 1 sorted by onCount
-		// */
-		// private boolean isSortedByOn;
-
-		// String[] localRestrictionNames = null; // cache this
-		//
-		// String[] nonLocalRestrictionNames = null;
-
-		/**
-		 * The sum of the totalCounts for our children. Can be less than
-		 * totalCount if some items aren't further categorized, or greater if
-		 * some items are in multiple child categories.
-		 */
-		int totalChildTotalCount = -1;
-
-		// int totalChildOnCount = -1;
-
-		int maxChildTotalCount = -1;
-
-		// int maxChildPercentOn = -1;g " + this);
-
-		InstantiatedPerspective(Perspective p) {
-			q = p.query();
-			descriptionCategory = p.getParent().getDescriptionCategory();
-			descriptionPreposition = p.getParent().getDescriptionPreposition();
-			// if (nChildren > 0) {
-			// dataIndex = new Perspective[p.nChildren()];
-			// dataIndexByOn = new Perspective[p.nChildren()];
-			// }
-			// Util.print("instantiating " + this);
-		}
-
-		Perspective[] getChildren() {
-			Perspective[] result = new Perspective[nChildren];
-			System.arraycopy(dataIndex, 0, result, 0, nChildren);
-			// Comparator comparator = q.isRestricted() ? onCountComparator
-			// : totalCountComparator;
-			// Arrays.sort(result, comparator);
-			return result;
-		}
-
-		InstantiatedPerspective(Perspective p, int n_children,
-				int child_offset, String _name) {
-			assert p != null;
-			assert p.getParent() != null : p;
-			// InstantiatedPerspective _parent =
-			// p.getParent().instantiatedPerspective;
-			q = p.query();
-			descriptionCategory = p.getParent().getDescriptionCategory();
-			descriptionPreposition = p.getParent().getDescriptionPreposition();
-			name = _name;
-			setNchildren(n_children, child_offset);
-			// Util.print("instantiating " + this);
-		}
-
-		InstantiatedPerspective(int n_children, int child_offset, String _name,
-				String _descriptionCategory, String _descriptionPreposition,
-				Query _q) {
-			// Util.print("instantiating " + this);
-			q = _q;
-			name = _name;
-			descriptionCategory = _descriptionCategory;
-			setNchildren(n_children, child_offset);
-			descriptionPreposition = parseDescriptionPreposition(_descriptionPreposition);
-		}
-
-		/**
-		 * @param minCount
-		 * @param maxCount
-		 * @return Iterator over children c where: c.cumCount >= minCount &&
-		 *         c.cumCountExclusive <= maxCount
-		 */
-		Iterator<Perspective> cumCountChildIterator(int minCount, int maxCount) {
-			if (minCount < 0)
-				minCount = 0;
-			if (maxCount > totalChildTotalCount)
-				maxCount = totalChildTotalCount;
-			if (minCount <= 1 && maxCount >= totalChildTotalCount - 1)
-				// optimize common case
-				return getChildIterator();
-			synchronized (dummyCumCount) {
-				dummyCumCount.cumCount = minCount;
-				int minWhichChild = Arrays.binarySearch(dataIndex,
-						dummyCumCount, cumCountInclusiveComparator);
-				minWhichChild = childIndexFromBinarySearch(minWhichChild, false);
-				Perspective minChild = getNthChild(minWhichChild);
-				while (minChild.getTotalCount() == 0) {
-					// This can happen when restrictedData
-					minChild = getNthChild(--minWhichChild);
-				}
-				// Util.print(minCount + " " + minWhichChild + " "
-				// + childIndexFromBinarySearch(minWhichChild, false));
-				dummyCumCount.cumCount = maxCount;
-				int maxWhichChild = Arrays.binarySearch(dataIndex,
-						dummyCumCount, cumCountExclusiveComparator);
-				maxWhichChild = childIndexFromBinarySearch(maxWhichChild, true);
-				Perspective maxChild = getNthChild(maxWhichChild);
-				while (maxChild.getTotalCount() == 0) {
-					maxChild = getNthChild(++maxWhichChild);
-				}
-				// Util.print("cumCountChildIterator " + minCount + "-" +
-				// maxCount
-				// + "/" + getTotalChildTotalCount() + " " +
-				// minChild.toStringWithCumCount()
-				// + " -- " + maxChild.toStringWithCumCount());
-				assert minChild.cumCountInclusive() >= minCount
-						&& minChild.cumCountExclusive() <= minCount
-						&& maxChild.cumCountInclusive() >= maxCount
-						&& maxChild.cumCountExclusive() <= maxCount;
-				return getChildIterator(minChild, maxChild);
-			}
-		}
-
-		private int childIndexFromBinarySearch(int index, boolean exclusive) {
-			// Util.print("cifbs " + index);
-			if (index < 0) {
-				if (exclusive)
-					index = -index - 2;
-				else
-					index = -index - 1;
-			}
-			// Util.print(" => " + index);
-			return index;
-		}
-
-		// /**
-		// * @param prefix
-		// * @param letter
-		// * @param redraw
-		// * callback in the case of uncached names
-		// * @return first (alphabetically) Perspective starting with prefix
-		// * followed by letter, or any other Perspective if none exist,
-		// * or null if we don't know due to uncached facet names.
-		// */
-		// Perspective firstWithLetter(String prefix, char letter,
-		// PerspectiveObserver redraw) {
-		//
-		// synchronized (dummyCumCount) {
-		// redrawer = redraw;
-		// // if parent isn't set, barfs during instantiation
-		// dummyCumCount.parent = Perspective.this;
-		// dummyCumCount.setName(prefix + letter);
-		// int whichChild = childIndexFromBinarySearch(Arrays
-		// .binarySearch(dataIndex, dummyCumCount,
-		// facetNameComparator), false);
-		// // if (whichChild > 0)
-		// // whichChild--;
-		// Perspective child = getNthChild(whichChild);
-		// if (child.getNameIfPossible() == null)
-		// child = null;
-		// // Util.print("firstWithLetter '"
-		// // + (prefix + letter)
-		// // + "' "
-		// // + Arrays.binarySearch(dataIndex, dummyCumCount,
-		// // facetNameComparator) + " " + whichChild + " "
-		// // + child);
-		// return child;
-		// }
-		// }
-		//
-		// /**
-		// * @param prefix
-		// * @param letter
-		// * @param redraw
-		// * callback in the case of uncached names
-		// * @return last (alphabetically) Perspective starting with prefix
-		// * followed by letter, or any other Perspective if none exist,
-		// * or null if we don't know due to uncached facet names.
-		// */
-		// Perspective lastWithLetter(String prefix, char letter,
-		// PerspectiveObserver redraw) {
-		//
-		// synchronized (dummyCumCount) {
-		// redrawer = redraw;
-		// // if parent isn't set, barfs during instantiation
-		// dummyCumCount.parent = Perspective.this;
-		// char nextLetter = (char) (letter + 1);
-		// dummyCumCount.setName(prefix + nextLetter);
-		// int whichChild = childIndexFromBinarySearch(Arrays
-		// .binarySearch(dataIndex, dummyCumCount,
-		// facetNameComparator), false);
-		// if (whichChild > 0)
-		// whichChild--;
-		// Perspective child = getNthChild(whichChild);
-		// if (child.getNameIfPossible() == null)
-		// child = null;
-		// // Util.print("lastWithLetter '"
-		// // + (prefix + letter)
-		// // + "' "
-		// // + Arrays.binarySearch(dataIndex, dummyCumCount,
-		// // facetNameComparator) + " " + whichChild + " "
-		// // + child);
-		// return child;
-		// }
-		// }
-
-		String[] parseDescriptionPreposition(String descriptionPrepositionString) {
-			// Util.print("instantiate " + name + " " + nChildren);
-			String[] patterns = Util
-					.splitSemicolon(descriptionPrepositionString);
-			if (patterns.length == 1)
-				patterns = (String[]) Util.endPush(patterns, " NOT "
-						+ patterns[0], String.class);
-			return patterns;
-		}
-
-		int getNchildren() {
-			return nChildren;
-		}
-
-		void setNchildren(int n, int child_offset) {
-			// Util.print("setNchildren " + this + " " + n + " " +
-			// child_offset);
-			// assert children_offset < 0 || children_offset == child_offset
-			// || query().isEditable();
-			if (n != nChildren) {
-				// assert child_offset > 0 : child_offset;
-				// Util.print("setNchildren " + this + " " + n + " "
-				// + child_offset);
-				nChildren = n;
-				dataIndex = new Perspective[nChildren];
-				// dataIndexByOn = new Perspective[nChildren];
-			}
-			if (child_offset > 0) {
-				assert children_offset < 0 || children_offset == child_offset;
-				children_offset = child_offset;
-			}
-		}
-
-		/**
-		 * Sets field medianPvalue.
-		 * 
-		 * The two distributions to be compared are the on and off items. They
-		 * are divided into above and below the unconditional median, allocating
-		 * items with the median value in the same proportion they occur in the
-		 * unconditional case. *
-		 * 
-		 * row0 is the number on, and row1 is the number off. col0 is the total
-		 * greater than the median, and col1 is the total less than the median.
-		 */
-		private void computeMedianTestPvalue() {
-			medianPvalue = ChiSq2x2.getInstance(Perspective.this);
-			int totalChildOnCount = getTotalChildOnCount();
-			if (totalChildOnCount < totalChildTotalCount
-					&& totalChildOnCount > 0) {
-				double median = median(false);
-				int medianIndex = (int) median;
-				// Util.print(median + " " + dataIndex[medianIndex]);
-				int greaterThanMedianChildOnCount = 0;
-				int greaterThanMedianChildTotalCount = 0;
-				for (int i = medianIndex + 1; i < nChildren; i++) {
-					Perspective child = dataIndex[i];
-					int childOnCount = child.getOnCount();
-					if (childOnCount < 0)
-						// We may have prefetched, but haven't gotten onCounts
-						// yet
-						return;
-					greaterThanMedianChildOnCount += childOnCount;
-					greaterThanMedianChildTotalCount += child.getTotalCount();
-					// Util.print(i + " " + child + " " + childOnCount);
-				}
-				Perspective medianChild = dataIndex[medianIndex];
-				greaterThanMedianChildOnCount += medianChild.getOnCount()
-						* (1 - (median - medianIndex));
-				greaterThanMedianChildTotalCount += medianChild.getTotalCount()
-						* (1 - (median - medianIndex));
-
-				medianPvalue = getChiSq(totalChildTotalCount,
-						totalChildOnCount, greaterThanMedianChildTotalCount,
-						greaterThanMedianChildOnCount);
-				// int[][] table = {
-				// { totalChildOnCount - greaterThanMedianChildOnCount,
-				// greaterThanMedianChildOnCount },
-				// {
-				//
-				//
-				// totalChildTotalCount - totalChildOnCount
-				// - greaterThanMedianChildTotalCount
-				// + greaterThanMedianChildOnCount,
-				// greaterThanMedianChildTotalCount
-				// - greaterThanMedianChildOnCount } };
-				// Util.print("medianTest " + this + " " + medianTable + " "
-				// + Util.valueOfDeep(table));
-			}
-		}
-
-		double medianPvalue() {
-			computeMedianTestPvalue();
-			return medianPvalue.pvalue();
-		}
-
-		int medianPvalueSign() {
-			computeMedianTestPvalue();
-			return medianPvalue.sign();
-		}
-
-		/**
-		 * Sets field pValue
-		 */
-		ChiSq2x2 pValueCounts() {
-			// if (chiSqTable == null)
-			// chiSqTable = new ChiSq2x2();
-			if (updateIndex != q.updateIndex) {
-				pValueCounts = ChiSq2x2.getInstance(Perspective.this);
-				if (q.isQueryValid() && q.isRestricted()) {
-					int parentTotalCount = parentTotalCount();
-					int myTotalCount = getTotalCount();
-					int parentOnCount = parentOnCount();
-					assert parentTotalCount >= myTotalCount : this
-							+ ".totalCount(" + myTotalCount + ") > " + parent
-							+ " .totalCount(" + parentTotalCount + ") "
-							+ q.isQueryValid();
-					if (parentTotalCount > parentOnCount
-							&& parentTotalCount > myTotalCount
-							&& parentOnCount > 0 && myTotalCount > 0
-							&& getOnCount() >= 0) {
-						// Deeply nested facets have on=-1;
-						// assert checkTable(parentTotalCount, parentOnCount,
-						// myTotalCount, onCount);
-						try {
-							pValueCounts = getChiSq(parentTotalCount,
-									parentOnCount, myTotalCount, getOnCount());
-							// if ("no date recorded on caption card"
-							// .equals(getNameIfPossible()))
-							// Util.print(this + " pvalue = "
-							// + pValue + " "
-							// + parentTotalCount + " "
-							// + parentOnCount + " " + totalCount + " " +
-							// onCount);
-							updateIndex = q.updateIndex;
-						} catch (OutOfRangeException e) {
-							// Keep going even if there are problems in
-							// ChiSq2x2.ChiSq2x2
-							System.err.println(this);
-							e.printStackTrace();
-						}
-					}
-				}
-			}
-			return pValueCounts;
-		}
-
-		double pValue() {
-			return pValueCounts().pvalue();
-		}
-
-		int pValueSign() {
-			return pValueCounts().sign();
-		}
-
-		double percentageRatio() {
-			return pValueCounts().percentageRatio();
-		}
-
-		/**
-		 * @see Perspective#median
-		 */
-		double median(boolean isConditional) {
-			int medianCount = isConditional ? getTotalChildOnCount()
-					: totalChildTotalCount;
-			if (medianCount > 0) {
-				medianCount /= 2;
-				int cumOnCount = 0;
-				for (int i = 0; i < nChildren; i++) {
-					Perspective child = dataIndex[i];
-					int childCount = isConditional ? child.getOnCount() : child
-							.getTotalCount();
-					cumOnCount += childCount;
-					if (cumOnCount > medianCount) {
-						double childFraction = 1.0 - (cumOnCount - medianCount)
-								/ (double) childCount;
-						assert !Double.isNaN(childFraction)
-								&& childFraction <= 1 && childFraction >= 0 : child
-								+ " " + medianCount + " " + childCount;
-						return i + childFraction;
-					}
-				}
-				assert false : this + " " + isConditional + " " + medianCount
-						+ " " + cumOnCount;
-			}
-			return -1.0;
-		}
-
-		void addFacetAllowingNulls(Perspective facet) {
-			// Util.print("addFacet " + this + " " + index + " " + facet);
-			assert facet != null : this;
-			int index = facet.getID() - childrenOffset() - 1;
-			assert dataIndex.length > index : this + " " + index + " " + facet
-					+ " " + childrenOffset();
-			// sortDataIndexByIndexAllowingNulls();
-			// isSortedByOn = false;
-			assert dataIndex[index] == facet
-					|| !Util.isMember(dataIndex, facet) : this + " " + index
-					+ " " + facet + "\n" + Util.valueOfDeep(dataIndex);
-			dataIndex[index] = facet;
-		}
-
-		// public void sortDataIndexByIndex() {
-		// int prevIsDataSorted = sortOrder;
-		// if (prevIsDataSorted != Perspective.SORTED_BY_INDEX) {
-		// synchronized (q.childIndexesBusy) {
-		// Arrays.sort(dataIndexByOn, Perspective.indexComparator);
-		// sortOrder = Perspective.SORTED_BY_INDEX;
-		// }
-		// }
-		// assert isSortedByIndex(dataIndexByOn) : prevIsDataSorted + " " + this
-		// + Util.valueOfDeep(dataIndexByOn);
-		// }
-
-		void incfChildren(int delta) {
-			assert query().isEditable();
-			nChildren += delta;
-			// Util.print("incfChildren " + delta + " is nuking " + this
-			// + "'s dataIndexByOn:\n" + Util.valueOfDeep(dataIndexByOn));
-			dataIndex = new Perspective[nChildren];
-			// dataIndexByOn = new Perspective[nChildren];
-			// // all children better be renamed
-			// isSortedByOn = false;
-		}
-
-		void addFacet(int index, Perspective facet) {
-			// Util.print("addFacet " + this + " " + index + " " + facet);
-			assert facet != null : this;
-			assert index < nChildren : facet + " " + index + " " + nChildren;
-			assert dataIndex != null : facet + " " + nChildren;
-			assert dataIndex.length == nChildren : facet + " "
-					+ dataIndex.length + " " + nChildren;
-			// sortDataIndexByIndex();
-			// isSortedByOn = false;
-
-			// This is too slow
-			// assert dataIndex[index] == facet || !Util.isMember(dataIndex,
-			// facet)
-			// : this
-			// + " "
-			// + index
-			// + " "
-			// + facet
-			// + "\n"
-			// + Util.valueOfDeep(dataIndex);
-			dataIndex[index] = facet;
-		}
-
-		/**
-		 * @param n
-		 * @return nth child facet in alphabetical (or sort) order
-		 */
-		public Perspective getNthChild(int n) {
-			assert n >= 0 : n;
-			assert n < nChildren : this + " " + n + "/" + nChildren;
-
-			Perspective result = q.findPerspective(children_offset + n + 1);
-			assert result != null : this + " " + n + " " + nChildren;
-			return result;
-		}
-
-		Iterator<Perspective> getChildIterator() {
-			assert children_offset > 0 : this + " has no children! "
-					+ nChildren();
-			return q.getFacetIterator(children_offset + 1, nChildren);
-		}
-
-		Iterator<Perspective> getChildIterator(Perspective min, Perspective max) {
-			return q.getFacetIterator(min.facet_id, max.facet_id - min.facet_id
-					+ 1);
-		}
-
-		void resetData(int count) {
-			// Util.print("Perspective.resetData " + this + " " + count);
-			assert count <= 0;
-			assert isPrefetched : this;
-			// if (isPrefetched())
-			for (Iterator<Perspective> it = getChildIterator(); it.hasNext();) {
-				Perspective child = it.next();
-				child.onCount = count;
-			}
-
-			// When removing a PV, set children's onCount to -1, but our onCount
-			// should be 0 (unless parent sets it to -1). Therefore, must clear
-			// children before parents.
-			onCount = 0;
-		}
-
-		// void sortDataIndexByOn(Perspective myPerspective) {
-		// // Util.print("sortDataIndexByOn " + this + " " + q.isRestricted() +
-		// " "
-		// // + isSortedByOn + " " + myPerspective.getOnCount() + " "
-		// // + dataIndex[0].onCount);
-		// if (!isSortedByOn && myPerspective.getOnCount() >= 0) {
-		// assert q.usesPerspective(myPerspective) : myPerspective;
-		// // synchronized (q.childIndexesBusy) {
-		// // Util.printDeep(dataIndexByOn);
-		// if (dataIndexByOn[0] == null) {
-		// System.arraycopy(dataIndex, 0, dataIndexByOn, 0, nChildren);
-		// }
-		// sortByOn(dataIndexByOn);
-		// isSortedByOn = true;
-		// assert isSortedByOn(dataIndexByOn) : this + " " + isSortedByOn
-		// + " " + myPerspective.getOnCount() + " "
-		// + myPerspective.getQuery().isRestricted();
-		// // }
-		// } else {
-		// assert isSortedByOn(dataIndexByOn) : this + " " + isSortedByOn
-		// + " " + myPerspective.getOnCount() + " "
-		// + myPerspective.getQuery().isRestricted();
-		// }
-		// // Util.print(" sortDataIndexByOn return");
-		// }
-		//
-		// boolean isSortedByOn(Perspective[] perspectives) {
-		// int prevCount = Integer.MAX_VALUE;
-		// for (int i = 0; i < nChildren; i++) {
-		// Perspective child = perspectives[i];
-		// assert child != null : this + " " + nChildren + " "
-		// + Util.valueOfDeep(perspectives);
-		// int onCount = child.getOnCount();
-		// if (onCount > prevCount) {
-		// Util.err(" NOT SORTED!!! " + this + "." + child + " " + onCount
-		// + " " + child.totalCount + " " + perspectives[i - 1]
-		// + " " + prevCount + " "
-		// + perspectives[i - 1].totalCount);
-		// return false;
-		// }
-		// prevCount = onCount;
-		// }
-		// return true;
-		// } // boolean isSortedByIndex(Perspective[] perspectives) {
-
-		// assert dataIndexByOn.length == nChildren : nChildren + " " +
-		// dataIndexByOn.length;
-		// for (int i = 0; i < nChildren; i++) {
-		// Perspective child = dataIndexByOn[i];
-		// assert child == null || child.getIndex() == i : this + "." + child
-		// + " " + child.getIndex() + " " + i + " " + children_offset
-		// + "\n" + Util.valueOfDeep(perspectives);
-		// }
-		// return true;
-		// }
-
-		// static void sortByOn(Perspective[] perspectives) {
-		// assert !Util.hasDuplicates(perspectives) : Util
-		// .valueOfDeep(perspectives);
-		// if (perspectives.length > 0) {
-		// Query query = perspectives[0].query();
-		// Comparator comparator = query.isRestricted() ?
-		// InstantiatedPerspective.onCountComparator
-		// : InstantiatedPerspective.totalCountComparator;
-		//
-		// assert Util.nOccurrences(perspectives, null) == 0 : Util
-		// .nOccurrences(perspectives, null)
-		// + " / " + perspectives.length;
-		// Arrays.sort(perspectives, comparator);
-		// }
-		// }
-
-		int getTotalChildOnCount() {
-			int result = 0;
-			if (q.isRestricted()) {
-				for (int i = 0; i < nChildren; i++) {
-					result += dataIndex[i].onCount;
-				}
-			} else
-				result = totalChildTotalCount;
-			return result;
-		}
-
-		Restrictions restrictions() {
-			if (restrictions == null)
-				restrictions = new Restrictions();
-			return restrictions;
-		}
-
-		void clearRestrictions() {
-			// Util.print("clearRestrictions " + this + " " + restrictions);
-			restrictions = null;
-		}
-
-		@Override
-		public String toString() {
-			return "<InstantiatedPerspective " + name + ">";
-		}
-
-	}
-
-	/**
-	 * Combine sequential Perspectives into MexPerspectives. If all children
-	 * included, substitute parent.
-	 * 
-	 * @param sortedFacetCollection
-	 *            a SortedSet or sorted List of Perspectives
-	 * @param onlyComparable
-	 *            only coalesce sibling, ordered Perspectives
-	 * @return SortedSet of Perspectives and MexPerspectives
-	 */
-	public static SortedSet<ItemPredicate> coalesce(
-			Collection<? extends ItemPredicate> sortedFacetCollection,
-			boolean onlyComparable) {
-		SortedSet<ItemPredicate> combos = new TreeSet<ItemPredicate>();
-		Perspective end = null;
-		Perspective start = null;
-		for (Iterator<? extends ItemPredicate> iterator = sortedFacetCollection
-				.iterator(); iterator.hasNext();) {
-			ItemPredicate ip = iterator.next();
-			Perspective startP = (Perspective) ((ip instanceof Perspective) ? ip
-					: ((MexPerspectives) ip).facets.first());
-			Perspective endP = (Perspective) ((ip instanceof Perspective) ? ip
-					: ((MexPerspectives) ip).facets.last());
-			if (end == null || startP.getID() != end.getID() + 1
-					|| startP.getParent() != end.getParent()) {
-				coalesceInternal(combos, start, end, onlyComparable);
-				start = startP;
-			}
-			end = endP;
-		}
-		coalesceInternal(combos, start, end, onlyComparable);
-		return combos;
-	}
-
-	private static void coalesceInternal(SortedSet<ItemPredicate> combos,
-			Perspective start, Perspective end, boolean onlyComparable) {
-		// Util.print("rfi " + start + " " + end);
-		if (start == end) {
-			if (start != null)
-				combos.add(end);
-		} else if (end.getID() - start.getID() + 1 == start.getParent()
-				.nChildren()) {
-			combos.add(start.getParent());
-		} else if (onlyComparable && !start.getParent().isOrdered()) {
-			for (Iterator<Perspective> it = start.getParent().getChildIterator(
-					start, end); it.hasNext();) {
-				Perspective p = it.next();
-				combos.add(p);
-			}
-		} else {
-			combos.add(new MexPerspectives(start, end));
-		}
-	}
-}
-
-final class Restrictions {
-	SortedSet<Perspective> require = new TreeSet<Perspective>();
-
-	SortedSet<Perspective> exclude = new TreeSet<Perspective>();
-
-	void delete(ItemPredicate facet, boolean required) {
-		// Util.print("Perspective.delete " + this + "." + facet + " " +
-		// required);
-		assert isRestriction(facet, required) : facet + " " + required;
-		if (required)
-			require.remove(facet);
-		else
-			exclude.remove(facet);
-	}
-
-	void add(Perspective facet, boolean required) {
-		// Util.print("add " + facet);
-		assert facet != null;
-		assert !isRestriction(facet, required);
-		if (required)
-			require.add(facet);
-		else
-			exclude.add(facet);
-	}
-
-	// void append(Restrictions r) {
-	// require = (Perspective[]) Util.append(require, r.require,
-	// Perspective.class);
-	// exclude = (Perspective[]) Util.append(exclude, r.exclude,
-	// Perspective.class);
-	// }
-
-	int nRestrictions(boolean required) {
-		return restrictions(required).size();
-	}
-
-	int nRestrictions() {
-		return nRestrictions(true) + nRestrictions(false);
-	}
-
-	boolean isRestricted() {
-		return isRestricted(true) || isRestricted(false);
-	}
-
-	boolean isRestricted(boolean required) {
-		return !restrictions(required).isEmpty();
-	}
-
-	// Perspective getRestriction(int n, boolean required) {
-	// return restrictions(required).[n];
-	// }
-
-	SortedSet<Perspective> restrictions(boolean required) {
-		return required ? require : exclude;
-	}
-
-	boolean isRestriction(ItemPredicate facet, boolean required) {
-		return restrictions(required).contains(facet);
-	}
-
-	SortedSet<Perspective> allRestrictions() {
-		SortedSet<Perspective> result = new TreeSet<Perspective>(require);
-		result.addAll(exclude);
-		return result;
-	}
 }

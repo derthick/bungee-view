@@ -1,8 +1,8 @@
-/* 
+/*
 
- Created on Mar 5, 2005 
+ Created on Mar 5, 2005
 
- Bungee View lets you search, browse, and data-mine an image collection.  
+ Bungee View lets you search, browse, and data-mine an image collection.
  Copyright (C) 2006  Mark Derthick
 
  This program is free software; you can redistribute it and/or
@@ -19,8 +19,8 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
- You may also contact the author at 
- mad@cs.cmu.edu, 
+ You may also contact the author at
+ mad@cs.cmu.edu,
  or at
  Mark Derthick
  Carnegie-Mellon University
@@ -31,141 +31,133 @@
 
 package edu.cmu.cs.bungee.client.query;
 
+import java.lang.ref.SoftReference;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.Hashtable;
+import java.util.Map;
 
-import edu.cmu.cs.bungee.client.query.Query.Item;
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
+
+import edu.cmu.cs.bungee.client.query.markup.MarkupElement;
+import edu.cmu.cs.bungee.client.query.query.Query;
+import edu.cmu.cs.bungee.javaExtensions.GenericTree;
+import edu.cmu.cs.bungee.javaExtensions.MyResultSet;
 
 /**
- * @author mad
- * top-level node can be an Item, Cluster, String, or null
- * If the tree object is null, FacetTreeViz won't display the node (used for cluster tags to ignore)
- * descendents are the associated facets, arranged in a hierarchy by their parent relationships
+ * Top level node is an Item. Descendent nodes are the associated facets,
+ * arranged in a hierarchy by their parent relationships.
  */
-public final class FacetTree extends DisplayTree  {
-	
-/**
- * @param _parent this subtree's parent tree
- * @param leafs facets to create child subtrees for
- * @param desc description of this subtree
- */
-	// called by ClusterViz
-	public FacetTree(DisplayTree _parent, Set<Perspective> leafs, String desc) {
-		super(_parent, desc, null);
-		// Util.print("FacetTree " + p);
-		createDescendentTree(Perspective.ancestors(leafs));
-	}
+public final class FacetTree extends GenericTree<MarkupElement> {
 
-	private void createDescendentTree(Set<Perspective> facets) {
-		Object parentFacet = (treeObject() instanceof Perspective) ? treeObject() : null;
-		for (Iterator<Perspective> it = facets.iterator(); it.hasNext();) {
-			Perspective p = it.next();
-			if (p.getParent() == parentFacet) {
-				FacetTree child = new FacetTree(this, p);
-				child.createDescendentTree(facets);
+	private transient static SoftReference<Map<Query, Map<Item, FacetTree>>> FACET_TREES;
+
+	/**
+	 * Only called by SelectedItem.itemSetter
+	 *
+	 * rs is [facet_id, parent_facet_id, name, n_child_facets,
+	 * first_child_offset, total_count]
+	 *
+	 * @param item
+	 *            create a FacetTree for item, containing its facets
+	 */
+	FacetTree(final @NonNull Item item, final @NonNull Query query) {
+		super(item, item.getDescription(query));
+		try (ResultSet rs = query.getItemInfo(item);) {
+			if (query.waitForValidQuery()) {
+				int lastFacetTypeID = -1;
+				while (rs.next()) {
+					final int parentFacetID = rs.getInt(2);
+					if (parentFacetID != lastFacetTypeID && query.isTopLevel(parentFacetID)) {
+						lastFacetTypeID = parentFacetID;
+						final Perspective parentPerspective = query.findPerspectiveOrError(parentFacetID);
+						final int row = rs.getRow();
+						addChild(new FacetTree(parentPerspective, rs, query));
+						rs.absolute(row);
+					}
+				}
+				assert nChildren() > 0 : this + "\n" + MyResultSet.valueOfDeep(rs);
 			}
-		}
-	}
-	
-	// called by createDescendentTree
-	FacetTree(DisplayTree _parent, Perspective facet) {
-		super(_parent, facet, null);
-		assert facet != null;
-	}
-
-	/**
-	 * @param parent this subtree's parent tree
-	 * @param rs parent_facet_id, facet_id, name, n_child_facets, first_child_offset, n_items, isAncestor
-	 * @param q the Query of this tree's objects
-	 * @throws SQLException 
-	 */
-	// called by ClusterViz.createTree
-	public FacetTree(DisplayTree parent, ResultSet rs, Query q) throws SQLException {
-		super(parent, new Cluster(rs, q), null);
-		// Util.print("FacetTree " + p);
-//		Query q = art.query;
-		rs.beforeFirst();
-		facetTreeInternal(q, rs);
-//		facet = new Cluster(rs, q);
-	}
-
-	// called by SelectedItem.itemSetter
-	/**
-	 * @param item create a FacetTree for item, containing its facets
-	 * @param description concatenated values for all the description fields for this item
-	 * @param q the Query the item is in
-	 */
-	public FacetTree(Item item, String description, Query q) {
-		super(null, item, description);
-		assert item != null;
-		ResultSet rs = null;
-		try {
-			rs = q.getItemInfo(item);
-			// returns [parent_facet_id, facet_id, name, n_child_facets,
-			// first_child_offset, n_items]
-			facetTreeInternal(q, rs);
-		} catch (Throwable e) {
+		} catch (final Throwable e) {
 			e.printStackTrace();
-		} finally {
-			q.close(rs);
 		}
+		lookupFacetTreeTable(query).put(item, this);
 	}
 
-	private void facetTreeInternal(Query q, ResultSet rs) {
-		try {
-			int lastFacetType = -1;
-			while (rs.next()) {
-				// Util.print(rs.getInt(1) + " " + rs.getInt(2) + " " +
-				// rs.getString(3));
-				int parent_facet = rs.getInt(1);
-				if (q.isTopLevel(parent_facet) && parent_facet != lastFacetType) {
-					lastFacetType = parent_facet;
-					Perspective parentPerspective = q
-							.findPerspective(parent_facet);
-					assert parentPerspective.isInstantiated();
-					// println(facet_type + " " + rs.getString("name") + " " +
-					// p);
-					int row = rs.getRow();
-					new FacetTree(this, parentPerspective, rs, q);
-					rs.absolute(row);
-				}
+	/**
+	 * @param rs
+	 *            [facet_id, parent_facet_id, name, n_child_facets,
+	 *            first_child_offset, total_count]
+	 */
+	private FacetTree(final Perspective parentPerspective, final ResultSet rs, final Query query) throws SQLException {
+		super(parentPerspective.getMarkupElement(), null);
+		final int parentID = parentPerspective.getID();
+		rs.beforeFirst();
+		while (rs.next()) {
+			if (rs.getInt(2) == parentID) {
+				final int row = rs.getRow();
+				final Perspective childPerspective = parentPerspective.ensureChild(rs.getInt(1), rs.getString(3),
+						rs.getInt(5), rs.getInt(4));
+				// final int totalCount = rs.getInt(6);
+				// assert totalCount > 0;
+				// childPerspective.setTotalCount(totalCount);
+				addChild(new FacetTree(childPerspective, rs, query));
+				rs.absolute(row);
 			}
-			// q.close(rs);
-		} catch (java.sql.SQLException se) {
-			se.printStackTrace();
 		}
 	}
 
-	// called by facetTreeInternal (and recursively)
-	private FacetTree(DisplayTree _parent, Perspective _p, ResultSet rs, Query q) {
-		super(_parent, _p, null);
-		assert _p != null;
-		assert _parent != null;
-		assert rs != null;
-		if (_p.nChildren() > 0) {
-			_p.ensureInstantiatedPerspective();
+	// public boolean isTotalCountCached() {
+	// boolean result = true;
+	// for (final MarkupElement element : this) {
+	// if (element instanceof PerspectiveMarkupElement) {
+	// final Perspective perspective = ((PerspectiveMarkupElement)
+	// element).perspective;
+	// if (!perspective.isTotalCountCached()) {
+	// result = false;
+	// break;
+	// }
+	// }
+	// }
+	// return result;
+	// }
+
+	public static @NonNull FacetTree ensureFacetTree(final @NonNull Item item, final @NonNull Query query) {
+		FacetTree result = lookupFacetTree(item, query);
+		if (result == null) {
+			result = new FacetTree(item, query);
 		}
-//		 Util.print("FacetTree for " + _p + " " + _p.nChildren()+ " " + _p.children_offset());
-		try {
-			rs.beforeFirst();
-			while (rs.next())
-				if (rs.getInt(1) == _p.getID()) {
-					int row = rs.getRow();
-//					Util.print(rs.getInt(2) + " " + _p + " " + rs
-//							.getString(3) + " " + rs.getInt(5) + " " + rs.getInt(4));
-					Perspective child = q.ensurePerspective(rs.getInt(2), _p, rs
-							.getString(3), rs.getInt(5), 
-							rs.getInt(4));
-					if (!q.isRestrictedData())
-						child.setTotalCount ( rs.getInt(6));
-					new FacetTree(this, child, rs, q);
-					rs.absolute(row);
-				}
-		} catch (java.sql.SQLException se) {
-			se.printStackTrace();
+		return result;
+	}
+
+	public static @Nullable FacetTree lookupFacetTree(final @NonNull Item item, final @NonNull Query query) {
+		final Map<Item, FacetTree> facetTreeTable = lookupFacetTreeTable(query);
+		final FacetTree facetTree = facetTreeTable.get(item);
+		// if (facetTree != null && !facetTree.isTotalCountCached()) {
+		// facetTreeTable.remove(item);
+		// facetTree = null;
+		// }
+		return facetTree;
+	}
+
+	private static @NonNull Map<Item, FacetTree> lookupFacetTreeTable(final @NonNull Query query) {
+		final Map<Query, Map<Item, FacetTree>> facetTreesTable = getFacetTreesTable();
+		Map<Item, FacetTree> map = facetTreesTable.get(query);
+		if (map == null) {
+			map = new Hashtable<>();
+			facetTreesTable.put(query, map);
 		}
+		return map;
+	}
+
+	private static @NonNull Map<Query, Map<Item, FacetTree>> getFacetTreesTable() {
+		Map<Query, Map<Item, FacetTree>> table = FACET_TREES == null ? null : FACET_TREES.get();
+		if (table == null) {
+			table = new Hashtable<>();
+			FACET_TREES = new SoftReference<>(table);
+		}
+		return table;
 	}
 
 }
