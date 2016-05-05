@@ -4,11 +4,13 @@ import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.text.ParseException;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
+import java.util.logging.Level;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
@@ -18,486 +20,516 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.commons.lang3.ArrayUtils;
+import org.eclipse.jdt.annotation.NonNull;
+
+import edu.cmu.cs.bungee.javaExtensions.JDBCSample;
+import edu.cmu.cs.bungee.javaExtensions.MyLogger;
 import edu.cmu.cs.bungee.javaExtensions.Util;
+import edu.cmu.cs.bungee.javaExtensions.UtilString;
 
-enum Command {
-	CONNECT, CLOSE, getCountsIgnoringFacet, ABOUT_COLLECTION, getFilteredCounts, updateOnItems, prefetch, offsetItems, getThumbs, cluster, getDescAndImage, getItemInfo, ITEM_URL, itemIndex, itemIndexFromURL, restrict, baseFacets, getFilteredCountTypes, addItemsFacet, addChildFacet, removeItemFacet, reparent, addItemFacet, writeback, revert, rotate, rename, removeItemsFacet, getNames, reorderItems, setItemDescription, opsSpec, getLetterOffsets, caremediaPlayArgs, caremediaGetItems, onCountMatrix, topCandidates, getFacetInfo
-}
-
+/**
+ * This class is only referred to in web.xml
+ */
 public class Servlet extends HttpServlet {
 
-	private static boolean DEBUG = true;
+	protected static final long serialVersionUID = 8922913873736902656L;
 
-	private Map<Integer, Database> sessions = new HashMap<Integer, Database>();
+	private static final Map<Integer, Database> SESSIONS = new HashMap<>();
 
-	// int sessionCounter = 1;
-	private Random sessionGenerator = new Random();
+	private static final Map<Database, DatabaseEditing> DATABASE_EDITORS = new HashMap<>();
 
-	private static Command parseCommand(String command) {
-		Command result = Command.valueOf(command);
-		// Database.myAssert(result != null, "Unknown command: " + command);
-		return result;
+	private static final Random SESSION_GENERATOR = new Random();
+
+	private final MyLogger myLogger = MyLogger.getMyLogger(Servlet.class);
+
+	private void logp(final String msg, final Level level, final Throwable e, final String sourceMethod) {
+		MyLogger.logp(myLogger, msg, level, e, "Servlet", sourceMethod);
 	}
 
-	private static final long serialVersionUID = 8922913873736902656L;
+	private void logp(final String msg, final Level level, final String sourceMethod) {
+		MyLogger.logp(myLogger, msg, level, "Servlet", sourceMethod);
+	}
 
-	// This method is called by the servlet container just before this servlet
-	// is put into service.
-	// public void init() throws ServletException {
-	// log("getinit init");
-	// }
+	/**
+	 * Using
+	 *
+	 * if () {errorp();}
+	 *
+	 * instead of myAssertp() prevents unnecessary evaluation of msg.
+	 */
+	private void errorp(final String msg, final String sourceMethod) {
+		logp(msg, MyLogger.SEVERE, sourceMethod);
+		throw new AssertionError(msg);
+	}
 
-	// This method is called by the servlet container just after this servlet
-	// is removed from service.
+	@Override
+	// Initialize DBs specified by config parameter "initDBs"
+	public void init(final ServletConfig config) throws ServletException {
+		super.init(config);
+		final String dbNamesString = config.getInitParameter("initDBs");
+		if (UtilString.isNonEmptyString(dbNamesString)) {
+			final String server = config.getInitParameter("server");
+			final String user = config.getInitParameter("user");
+			final String pass = config.getInitParameter("pwd");
+			if (!UtilString.isNonEmptyString(server) || !UtilString.isNonEmptyString(user)
+					|| !UtilString.isNonEmptyString(pass)) {
+				errorp("Missing init arg(s): " + server + ", " + user + ", " + pass, "ensureDBsInitted");
+			}
+			assert server != null && user != null && pass != null;
+			final String[] dbNames = dbNamesString.split(",");
+			logp("Ensuring all " + dbNames.length + " DBs initted: " + dbNamesString, MyLogger.WARNING,
+					"ensureDBsInitted");
+			for (final String dbName : dbNames) {
+				logp("Initializing " + dbName, MyLogger.INFO, "ensureDBsInitted");
+				assert dbName != null;
+				try (final Database db = new Database(server, dbName, user, pass, false);) {
+					// Each session gets it's own db, so no reason to keep them.
+					db.close();
+				} catch (final Throwable e) {
+					logp("Skipping ensureDBInitted of " + dbName + " because: ", MyLogger.SEVERE, e,
+							"ensureDBsInitted");
+				}
+			}
+			logp("All " + dbNames.length + " DBs initted.", MyLogger.WARNING, "ensureDBsInitted");
+		}
+	}
+
 	@Override
 	synchronized public void destroy() {
-		// log("destroy");
-		for (Iterator<Database> iterator = sessions.values().iterator(); iterator
-				.hasNext();) {
-			Database db = iterator.next();
+		final Collection<Database> dbs = SESSIONS.values();
+		logp("Closing " + dbs.size() + " DBs: " + dbs, MyLogger.WARNING, "destroy");
+		for (final Database db : dbs) {
 			try {
-				db.close();
-			} catch (SQLException e) {
-				e.printStackTrace();
+				closeDB(null, db);
+			} catch (final SQLException e) {
+				logp("Can't close database " + db + " because: ", MyLogger.SEVERE, e, "destroy");
 			}
 		}
-		sessions.clear();
-	}
-
-	private synchronized void close(Integer session) throws SQLException {
-		Database db = sessions.get(session);
-		if (db != null) {
-			// log("close database");
-			db.close();
-		}
-		sessions.remove(session);
-	}
-
-	private synchronized void addSession(Integer xsession, Database db)
-			throws SQLException {
-		if (xsession != null) {
-			close(xsession);
-		}
-		// log("open database");
-		sessions.put(xsession, db);
-	}
-
-	private synchronized Integer getSession(HttpServletRequest request) {
-		String sessionName = request.getParameter("session");
-		int n = sessionName == null ? sessionGenerator.nextInt() : Integer
-				.parseInt(sessionName);
-		return Integer.valueOf(n);
-
-	}
-
-	private int handleItemIndex(int item, int table, int nNeighbors,
-			Database db, DataOutputStream out) throws ServletException,
-			SQLException, IOException {
-		int itemOffset = db.itemOffset(item, table);
-
-		// servletInterface will subtract 1 from the result.
-		Database.writeInt(itemOffset + 1, out);
-
-		if (nNeighbors > 1) {
-			int base = Math.max(0, itemOffset);
-			int minOffset = Math.max(0, base - nNeighbors + 1);
-			int maxOffset = base + nNeighbors;
-
-			Database.writeInt(minOffset, out);
-			// Database.writeInt(maxOffset, out);
-			db.offsetItems(minOffset, maxOffset, table, out);
-		}
-		// log("itemIndex " + intResult);
-		return itemOffset;
+		SESSIONS.clear();
+		logp("All " + dbs.size() + " DBs closed.", MyLogger.WARNING, "destroy");
 	}
 
 	@Override
-	protected void doGet(HttpServletRequest request,
-			HttpServletResponse response) throws IOException {
+	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 		// Called when you go to a bookmark in a browser
-		log("Who is sending doGet??? Calling doPost: ");
-		logRequest(request);
 		doPost(request, response);
 	}
 
-	@SuppressWarnings("unchecked")
-	void logRequest(HttpServletRequest request) {
-		log("Request info: " + request.getRequestURL().toString() + " "
-				+ request.getQueryString() + " " + request.getRemoteHost());
-		Enumeration<String> e = request.getHeaderNames();
-		while (e.hasMoreElements()) {
-			String s = e.nextElement();
-			log(s + ": " + request.getHeader(s));
+	/**
+	 * Just calls logp(MyLogger.FINE)
+	 */
+	void logRequest(final HttpServletRequest request) {
+		final StringBuilder buf = new StringBuilder();
+		buf.append("\ngetRequestURL=").append(request.getRequestURL().toString()).append("\ngetQueryString=")
+				.append(request.getQueryString()).append("\ngetRemoteHost=").append(request.getRemoteHost());
+		buf.append("\ngetCharacterEncoding=").append(request.getCharacterEncoding());
+		buf.append("\nHeaders:");
+		final Enumeration<String> headers = request.getHeaderNames();
+		while (headers.hasMoreElements()) {
+			final String header = headers.nextElement();
+			buf.append("\n").append(header).append(": ").append(request.getHeader(header));
 		}
+		buf.append("\nAttributes:");
+		final Enumeration<String> attributes = request.getAttributeNames();
+		while (attributes.hasMoreElements()) {
+			final String attribute = attributes.nextElement();
+			buf.append("\n").append(attribute).append(": ").append(request.getAttribute(attribute));
+		}
+		logp(buf.toString(), MyLogger.FINE, "logRequest");
 	}
 
 	@Override
-	protected void doPost(HttpServletRequest request,
-			HttpServletResponse response) throws IOException {
-
-		// This doesn't work - make sure the Tomcat Connector is configured for
-		// UTF_8, e.g. <Connector port="80" URIEncoding="UTF-8"/>. Otherwise
-		// getParameter will decode wrong.
-		//
-		// if (request.getCharacterEncoding() == null)
-		// request.setCharacterEncoding("UTF-8");
-
-		String errMsg = null;
-		DataOutputStream out = null;
-		try {
-			Integer xsession = getSession(request);
-			Command command = parseCommand(request.getParameter("command"));
-			// if (command != Command.prefetch)
-			if (DEBUG) {
-				log("doPost " + request.getQueryString());
-				logRequest(request);
+	// Make sure the Tomcat Connector is configured for
+	// UTF_8, e.g. <Connector port="80" URIEncoding="UTF-8"/>. Otherwise
+	// getParameter will decode wrong.
+	protected void doPost(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
+		logRequest(request);
+		assert false : "Should not enableAssertions on Servlet";
+		final Command command = Command.valueOf(request.getParameter("command"));
+		response.setContentType("application/octet-stream");
+		response.setHeader("pragma", "no-cache");
+		try (DataOutputStream out = new DataOutputStream(new DeflaterOutputStream(
+				new BufferedOutputStream(response.getOutputStream()), new Deflater(Deflater.BEST_COMPRESSION)));) {
+			// Not sure whether this is needed. Must make sure out isn't closed
+			// until after reportDoPostError.
+			try {
+				final Integer session = command == Command.CONNECT ? connectCommand(request) : lookupSession(request);
+				logp("...doPost " + command + " to db", MyLogger.FINE, "doPost");
+				doPostInternal(request, command, out, session);
+			} catch (final Throwable e) {
+				reportDoPostError(response, request, e);
 			}
-			if (command == Command.CONNECT) {
-				String dbName = request.getParameter("arg1");
-				ServletConfig config = getServletConfig();
-				String server = config.getInitParameter("server");
-				String user = config.getInitParameter("user");
-				String pass = config.getInitParameter("pwd");
-				String[] dbNames = config.getInitParameter("dbs").split(",");
-				// log(Util.valueOfDeep(dbNames)+" "+dbName+" "+request.
-				// getRemoteHost()+" "+config.getInitParameter(
-				// "IPpermissions"));
-				if (dbName == null) {
-					dbName = dbNames[0];
-				} else if (!isMemberIgnoringCase(dbNames, dbName)) {
-					String requestIP = dbName + request.getRemoteHost();
-					boolean isAuthorized = false;
-					String[] authorizedIPs = config.getInitParameter(
-							"IPpermissions").split(",");
-					for (int i = 0; i < authorizedIPs.length && !isAuthorized; i++) {
-						isAuthorized = requestIP.startsWith(authorizedIPs[i]);
-						// log(i+" "+isAuthorized+" "+requestIP+" "+authorizedIPs
-						// [i]);
-					}
-					if (!isAuthorized)
-						errMsg = "Your IP address, " + request.getRemoteHost()
-								+ ", is not authorized to use database "
-								+ dbName;
-				}
-				if (DEBUG)
-					logRequest(request);
-				if (errMsg == null) {
-					// log("Connect to " + dbName + " session = " + xsession);
-					Database db;
-					try {
-						db = new Database(server, dbName, user, pass, this);
-						// db.jdbc.servlet = this;
-						addSession(xsession, db);
-					} catch (Exception e) {
-						errMsg = "Could not connect to database " + dbName
-								+ " because\n" + e.getMessage() + "\nbecause\n"
-								+ e.getCause() + "\n"
-								+ Util.join(e.getStackTrace(), "\n");
-					}
-				}
-			}
-			Database db = sessions.get(xsession);
-			if (errMsg == null && db == null)
-				errMsg = "No database associated with session '" + xsession
-						+ "'";
+		}
+		logp("doPost " + command + " done", MyLogger.FINE, "doPost");
+	}
 
-			if (errMsg == null) {
-				response.setContentType("application/octet-stream");
-				response.setHeader("pragma", "no-cache");
-				out = new DataOutputStream(new DeflaterOutputStream(
-						new BufferedOutputStream(response.getOutputStream()),
-						new Deflater(Deflater.BEST_COMPRESSION)));
-				// response.setContentLength(999);
+	private void reportDoPostError(final HttpServletResponse response, final HttpServletRequest request,
+			final Throwable e) throws IOException {
+		String message = null;
+		try (final Database db = SESSIONS.get(lookupSession(request));) {
+			message = "In Database=" + db + ", could not " + request.getQueryString() + " because " + e
+					+ (e.getCause() != null ? "\nbecause\n" + e.getCause() : "")
+					+ (db == null ? "\n sessions: " + SESSIONS : "") + "\n"
+					+ UtilString.join(e.getStackTrace(), "\nat ");
 
-				if (DEBUG)
-					log("...doPost " + command + " to db");
-				try {
-					doPostInternal(xsession, command, out, request);
-					// } catch (SQLException e) {
-					// errMsg = "Could not " + request.getQueryString() + "
-					// because
-					// "
-					// + e;
-				} catch (Throwable e) {
-					errMsg = "Could not " + request.getQueryString()
-							+ " because\n" + e + "\n"
-							+ Util.join(e.getStackTrace(), "\n") + "\n"
-							+ e.getCause();
-				}
+			logp(message, MyLogger.SEVERE, "reportDoPostError");
+			if (response.isCommitted()) {
+				logp("Can't send errMsg to client because response is already committed.\n" + message, MyLogger.SEVERE,
+						"reportDoPostError");
+			} else {
+				response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, message);
 			}
-			if (errMsg != null) {
-				log(errMsg);
-				if (!response.isCommitted()) {
-					response.sendError(
-							HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-							errMsg);
-				}
-			}
-			if (DEBUG)
-				log("...doPost " + command + " done");
-		} finally {
-			if (out != null)
-				out.close();
+		} catch (final SQLException e1) {
+			throw new IOException(message, e1);
 		}
 	}
 
-	private void doPostInternal(Integer xsession, Command command,
-			DataOutputStream out, HttpServletRequest request)
-			throws IOException, ServletException, SQLException {
-		handleUserActions(xsession, request);
-		Database db = sessions.get(xsession);
+	private synchronized static Integer lookupSession(final HttpServletRequest request) {
+		final String session = request.getParameter("session");
+		return session == null ? null : Integer.valueOf(session);
+	}
+
+	/**
+	 * Only called by doPost
+	 *
+	 * Create session and a database for it.
+	 *
+	 * @return new session
+	 * @throws SQLException
+	 */
+	@SuppressWarnings("resource")
+	// "resource" is for db.
+	private Integer connectCommand(final HttpServletRequest request) throws ServletException, SQLException {
+		final ServletConfig config = getServletConfig();
+		final String[] dbNames = config.getInitParameter("dbs").toLowerCase().split(",");
+		String dbName = request.getParameter("arg1");
+		if (!UtilString.isNonEmptyString(dbName)) {
+			dbName = dbNames[0];
+		}
+		dbName = dbName.toLowerCase();
+		assert dbName != null;
+		Integer session = null;
+		final String server = Util.nonNull(config.getInitParameter("server"));
+		final String pass = Util.nonNull(config.getInitParameter("pwd"));
+		final String user = Util.nonNull(config.getInitParameter("user"));
+		if (isAuthorized(dbName + request.getRemoteHost(), config, dbNames, dbName, user)) {
+			final boolean noTemporaryTables = Boolean.parseBoolean(request.getParameter("arg3"));
+			final Level level = Util.nonNull(Level.parse(request.getParameter("arg4")));
+			myLogger.setLevel(level);
+			final String slowQueryTimeString = request.getParameter("arg2");
+			final Database db = new Database(server, dbName, user, pass, noTemporaryTables);
+			db.setLogLevel(level);
+			session = generateSession(db);
+			if (slowQueryTimeString != null) {
+				db.jdbc.slowQueryTime = Integer.parseInt(slowQueryTimeString);
+			}
+		} else {
+			final boolean databaseExists = JDBCSample.getMySqlJDBCSample(server, "sys", user, pass)
+					.databaseExists(dbName);
+			throw new ServletException(databaseExists
+					? "Your IP address, " + request.getRemoteHost() + ", is not authorized to use database " + dbName
+					: "Database " + dbName + " does not exist.");
+		}
+		return session;
+	}
+
+	/**
+	 * Only called by connectCommand
+	 */
+	private synchronized static Integer generateSession(final Database db) {
+		final Integer session = Integer.valueOf(SESSION_GENERATOR.nextInt());
+		SESSIONS.put(session, db);
+		return session;
+	}
+
+	/**
+	 * Only called by connectCommand
+	 */
+	private static boolean isAuthorized(final String requestIP, final ServletConfig config, final String[] dbNames,
+			final String dbName, final String user) {
+		boolean isAuthorized = user.equals("root") || ArrayUtils.contains(dbNames, dbName);
+		if (!isAuthorized) {
+			final String[] authorizedIPs = config.getInitParameter("IPpermissions").split(",");
+			for (int i = 0; i < authorizedIPs.length && !isAuthorized; i++) {
+				isAuthorized = requestIP.startsWith(authorizedIPs[i]);
+			}
+		}
+		return isAuthorized;
+	}
+
+	/**
+	 * Only called by doPost
+	 */
+	@SuppressWarnings({ "null", "resource" })
+	// "resource" is for db. "null" is for db, arg1string, etc.
+	private void doPostInternal(final HttpServletRequest request, final Command command,
+			final @NonNull DataOutputStream out, final Integer session)
+			throws IOException, ServletException, SQLException, ParseException, InterruptedException {
+		final Database db = SESSIONS.get(session);
+		if (db == null && command != Command.CLOSE) {
+			errorp("db is null!: session=" + session + " command=" + command, "doPostInternal");
+		}
+		handleUserActions(session, request);
+		final String arg1string = request.getParameter("arg1");
+		final String arg2string = request.getParameter("arg2");
+		final String arg3string = request.getParameter("arg3");
+		final ServletConfig config = getServletConfig();
 		switch (command) {
 		case CONNECT:
-			// log("session = '" + xsession.toString() + "'");
-			Database.writeString(xsession.toString(), out);
-			Database.writeString(db.dbDescs(getServletConfig()
-					.getInitParameter("dbs")), out);
-			// Database.writeString(getServletConfig().getInitParameter("dbs"),
-			// out);
-			Database.writeInt(db.facetCount(), out);
-			Database.writeInt(db.itemCount(), out);
-			String[] globals = db.getGlobals();
-			for (int i = 0; i < globals.length; i++)
-				Database.writeString(globals[i], out);
-			db.initPerspectives(out);
-			db.init(out);
+			Encoder.writeString(session.toString(), out);
+			Encoder.writeString(db.dbDescs(config.getInitParameter("dbs")), out);
+			Encoder.writeInt(db.facetCount(), out);
+			Encoder.writeInt(db.itemCount(), out);
+			Encoder.writeBoolean(db.isCorrelations(), out);
+			final String[] globals = db.getGlobals();
+			if (Boolean.valueOf(globals[3])) {
+				final DatabaseEditing databaseEditing = new DatabaseEditing(db);
+				databaseEditing.setLogLevel(myLogger.getLevel());
+				DATABASE_EDITORS.put(db, databaseEditing);
+				myLogger.logp("databaseEditing =" + databaseEditing, MyLogger.INFO, "doPostInternal");
+			}
+			for (final String global : globals) {
+				Encoder.writeString(global, out);
+			}
+			db.initFacetTypes(out);
 			break;
 		case ABOUT_COLLECTION:
-			Database.writeString(db.aboutCollection(), out);
+			Encoder.writeString(db.aboutCollection(), out);
 			break;
-		case getCountsIgnoringFacet:
-			db.getCountsIgnoringFacet(request.getParameter("arg1"), request
-					.getParameter("arg2"), out);
+		case ONCOUNTS_IGNORING_FACET:
+			final int ignoreParent = getIntParameter(request, "arg2");
+			db.getCountsIgnoringFacet(arg1string, ignoreParent, out);
 			break;
 		case ITEM_URL:
-			Database.writeString(db
-					.getItemURL(getIntParameter(request, "arg1")), out);
+			int item = getIntParameter(request, "arg1");
+			Encoder.writeString(db.getItemURL(item), out);
 			break;
-		case getFilteredCounts:
-			db.getFilteredCounts(request.getParameter("arg1"), request
-					.getParameter("arg2"), out);
+		case FILTERED_COUNTS:
+			db.getFilteredCounts(OnItemsTable.valueOf(arg1string), out);
 			break;
-		case getFilteredCountTypes:
-			db.getFilteredCountTypes(out);
+		case PREFETCH:
+			final FetchType fetchType = FetchType.values()[Integer.parseInt(arg2string)];
+			db.prefetch(arg1string, fetchType, out);
 			break;
-		case prefetch:
-			db.prefetch(getIntParameter(request, "arg1"), getIntParameter(
-					request, "arg2"), out);
+		case LETTER_OFFSETS:
+			final int parentFacetID = getIntParameter(request, "arg1");
+			db.getLetterOffsets(parentFacetID, arg2string, out);
 			break;
-		case getLetterOffsets:
-			db.getLetterOffsets(getIntParameter(request, "arg1"), request
-					.getParameter("arg2"), out);
+		case FACET_NAMES:
+			db.getNames(arg1string, out);
 			break;
-		case getNames:
-			db.getNames(request.getParameter("arg1"), out);
+		case OFFSET_ITEMS:
+			db.offsetItems(getIntParameter(request, "arg1"), getIntParameter(request, "arg2"),
+					OnItemsTable.valueOf(arg3string), out);
 			break;
-		case offsetItems:
-			db.offsetItems(getIntParameter(request, "arg1"), getIntParameter(
-					request, "arg2"), getIntParameter(request, "arg3"), out);
+		case REORDER_ITEMS:
+			db.reorderOffsetQueries(getIntParameter(request, "arg1"));
 			break;
-		case reorderItems:
-			db.reorderItems(getIntParameter(request, "arg1"));
+		case THUMBS:
+			db.getThumbs(arg1string, getIntParameter(request, "arg2"), getIntParameter(request, "arg3"),
+					getIntParameter(request, "arg4"), out);
 			break;
-		case getThumbs:
-			db.getThumbs(request.getParameter("arg1"), getIntParameter(request,
-					"arg2"), getIntParameter(request, "arg3"), getIntParameter(
-					request, "arg4"), out);
+		case DESC_AND_IMAGE:
+			db.getDescAndImage(getIntParameter(request, "arg1"), getIntParameter(request, "arg2"),
+					getIntParameter(request, "arg3"), getIntParameter(request, "arg4"), out);
 			break;
-		case cluster:
-			int maxClusters = getIntParameter(request, "arg1");
-			int maxClusterSize = getIntParameter(request, "arg2");
-			String facetRestriction = request.getParameter("arg3");
-			double pValue = getDoubleParameter(request, "arg4");
-			db.cluster(maxClusters, maxClusterSize, facetRestriction, pValue,
-					out);
+		case ITEM_INFO:
+			item = getIntParameter(request, "arg1");
+			db.getItemInfo(item, out);
 			break;
-		case getDescAndImage:
-			int arg1 = getIntParameter(request, "arg1");
-			db.getDescAndImage(arg1, getIntParameter(request, "arg2"),
-					getIntParameter(request, "arg3"), getIntParameter(request,
-							"arg4"), out);
-			break;
-		case getFacetInfo:
-			int facet = getIntParameter(request, "arg1");
+		case IMPORT_FACET:
 			boolean isRestrictedData = getBooleanParameter(request, "arg2");
-			db.getFacetInfo(facet, isRestrictedData, out);
+			db.getFacetInfo(arg1string, isRestrictedData, out);
 			break;
-		case updateOnItems:
-			String subQuery = request.getParameter("arg1");
-			int item = getIntParameter(request, "arg2");
-			int table = getIntParameter(request, "arg3");
-			int nNeighbors = getIntParameter(request, "arg4");
-			int nItems = db.updateOnItems(subQuery);
-			if (Database.writeInt(nItems, out) > 0) {
-				// int index =
+		case UPDATE_ON_ITEMS:
+			final int onCount = db.updateOnItems(arg1string /* subQuery */);
+			Encoder.writeInt(onCount, out);
+			if (onCount > 0) {
+				final OnItemsTable table = OnItemsTable.valueOf(arg3string);
+				item = getIntParameter(request, "arg2");
+				final int nNeighbors = getIntParameter(request, "arg4");
 				handleItemIndex(item, table, nNeighbors, db, out);
-				// servletInterface will subtract 1 from the result.
-				// Database.writeInt(index + 1, out);
 			}
 			break;
-		case itemIndexFromURL:
-			item = db.getItemFromURL(request.getParameter("arg1"));
-			Database.writeInt(item, out);
-			table = getIntParameter(request, "arg2");
-			nNeighbors = getIntParameter(request, "arg3");
-
-			// servletInterface will subtract 1 from the result.
-			// Database.writeInt(
+		case ITEM_INDEX_FROM_URL:
+			item = db.getItemFromURL(arg1string);
+			// item==-1 if not found
+			Encoder.writeInt(item + 1, out);
+			OnItemsTable table = OnItemsTable.valueOf(arg2string);
+			int nNeighbors = getIntParameter(request, "arg3");
 			handleItemIndex(item, table, nNeighbors, db, out);
-			// +1, out);
-
 			break;
-		case itemIndex:
+		case ITEM_OFFSET:
 			item = getIntParameter(request, "arg1");
-			table = getIntParameter(request, "arg2");
+			table = OnItemsTable.valueOf(arg2string);
 			nNeighbors = getIntParameter(request, "arg3");
-
-			// servletInterface will subtract 1 from the result.
-			// Database.writeInt(
 			handleItemIndex(item, table, nNeighbors, db, out);
-			// +1, out);
-
 			break;
-		case setItemDescription:
+		case SET_ITEM_DESCRIPTION:
 			item = getIntParameter(request, "arg1");
-			String description = request.getParameter("arg2");
-			db.setItemDescription(item, description);
+			db.setItemDescription(item, arg2string /* description */);
 			break;
-		case onCountMatrix:
-			String facets = request.getParameter("arg1");
-			String candidates = request.getParameter("arg2");
+		case ON_COUNT_MATRIX:
 			isRestrictedData = getBooleanParameter(request, "arg3");
-			boolean needBaseCounts = getBooleanParameter(request, "arg4");
-			db.onCountMatrix(facets, candidates, isRestrictedData,
-					needBaseCounts, out);
+			final boolean needBaseCounts = getBooleanParameter(request, "arg4");
+			db.onCountMatrix(arg1string /* facets */, arg2string /* candidates */, isRestrictedData, needBaseCounts,
+					out);
 			break;
-		case topCandidates:
-			facets = request.getParameter("arg1");
-			int n = getIntParameter(request, "arg2");
-			int baseTable = getIntParameter(request, "arg3");
-			// String baseTable = request.getParameter("arg3");
-			db.topCandidates(facets, n, baseTable, out);
+		case TOP_CANDIDATES:
+			final int maxCandidates = getIntParameter(request, "arg2");
+			db.topCandidates(arg1string, maxCandidates, out);
 			break;
-		case opsSpec:
-			int session = getIntParameter(request, "arg1");
-			db.opsSpec(session, out);
+		case LOSE_SESSION:
+			int opsSession = getIntParameter(request, "arg1");
+			db.loseSession(opsSession);
 			break;
-		case restrict:
+		case OPS_SPEC:
+			opsSession = getIntParameter(request, "arg1");
+			db.opsSpec(opsSession, out);
+			break;
+		case RANDOM_OPS_SPEC:
+			db.randomOpsSpec(out);
+			break;
+		case RESTRICT:
 			db.restrict();
 			break;
-		// case baseFacets:
-		// // printRecords(db.baseFacets(out), MyResultSet.SNMINT_PINT);
-		// db.baseFacets(out);
-		// break;
-		case addItemFacet:
-			facet = getIntParameter(request, "arg1");
-			item = getIntParameter(request, "arg2");
-			db.addItemFacet(facet, item, out);
-			break;
-		case addItemsFacet:
-			facet = getIntParameter(request, "arg1");
-			table = getIntParameter(request, "arg2");
-			db.addItemsFacet(facet, table, out);
-			break;
-		case removeItemsFacet:
-			facet = getIntParameter(request, "arg1");
-			table = getIntParameter(request, "arg2");
-			db.removeItemsFacet(facet, table, out);
-			break;
-		case addChildFacet:
-			facet = getIntParameter(request, "arg1");
-			String name = request.getParameter("arg2");
-			db.addChildFacet(facet, name, out);
-			break;
-		case removeItemFacet:
-			facet = getIntParameter(request, "arg1");
-			item = getIntParameter(request, "arg2");
-			db.removeItemFacet(facet, item, out);
-			break;
-		case reparent:
-			int parent = getIntParameter(request, "arg1");
-			int child = getIntParameter(request, "arg2");
-			db.reparent(parent, child, out);
-			break;
-		case writeback:
-			db.writeBack();
-			break;
-		case revert:
-			String date = request.getParameter("arg1");
-			db.revert(date);
-			break;
-		case rotate:
-			item = getIntParameter(request, "arg1");
-			int theta = getIntParameter(request, "arg2");
-			db.rotate(item, theta);
-			break;
-		case rename:
-			facet = getIntParameter(request, "arg1");
-			name = request.getParameter("arg2");
-			db.rename(facet, name);
-			break;
-		case caremediaPlayArgs:
-			String items = request.getParameter("arg1");
-			db.caremediaPlayArgs(items, out);
-			break;
-		case caremediaGetItems:
-			String segments = request.getParameter("arg1");
-			db.caremediaGetItems(segments, out);
-			break;
 		case CLOSE:
-			close(xsession);
+			final String s = "CLOSE " + db;
+			Encoder.writeString(s, out);
+			closeDB(session, db);
 			break;
+
+		// Remainder are editing commands
+		case ADD_ITEM_FACET:
+			int facet = getIntParameter(request, "arg1");
+			item = getIntParameter(request, "arg2");
+			getDatabaseEditing(db).addItemFacet(facet, item, out);
+			break;
+		case ADD_ITEMS_FACET:
+			facet = getIntParameter(request, "arg1");
+			table = OnItemsTable.valueOf(arg2string);
+			getDatabaseEditing(db).addItemsFacet(facet, table, out);
+			break;
+		case REMOVE_ITEM_FACET:
+			facet = getIntParameter(request, "arg1");
+			item = getIntParameter(request, "arg2");
+			getDatabaseEditing(db).removeItemFacet(facet, item, out);
+			break;
+		case REMOVE_ITEMS_FACET:
+			facet = getIntParameter(request, "arg1");
+			table = OnItemsTable.valueOf(arg2string);
+			getDatabaseEditing(db).removeItemsFacet(facet, table, out);
+			break;
+		case ADD_CHILD_FACET:
+			facet = getIntParameter(request, "arg1");
+			getDatabaseEditing(db).addChildFacet(facet, arg2string /* name */, out);
+			break;
+		case REPARENT:
+			final int parent = getIntParameter(request, "arg1");
+			final int child = getIntParameter(request, "arg2");
+			getDatabaseEditing(db).reparent(parent, child, out);
+			break;
+		case WRITEBACK:
+			getDatabaseEditing(db).writeBack();
+			break;
+		case REVERT:
+			getDatabaseEditing(db).revert(arg1string /* date */, config.getInitParameter("user"),
+					config.getInitParameter("pwd"));
+			break;
+		case ROTATE:
+			item = getIntParameter(request, "arg1");
+			final int clockwiseDegrees = getIntParameter(request, "arg2");
+			getDatabaseEditing(db).rotate(item, clockwiseDegrees);
+			break;
+		case RENAME:
+			facet = getIntParameter(request, "arg1");
+			getDatabaseEditing(db).rename(facet, arg2string /* name */);
+			break;
+
 		default:
 			throw (new ServletException("Unknown command: " + command));
 		}
-		if (DEBUG)
-			log("...doPost " + command + " writing");
+		logp("...doPost " + command + " writing", MyLogger.FINE, "doPostInternal");
 	}
 
-	private void handleUserActions(Integer xsession, HttpServletRequest request)
-			throws ServletException, SQLException {
-		String actionsString = request.getParameter("userActions");
+	private DatabaseEditing getDatabaseEditing(final Database db) {
+		final DatabaseEditing result = DATABASE_EDITORS.get(db);
+		if (result == null) {
+			errorp("databaseEditing is null", "getDatabaseEditing");
+		}
+		return result;
+	}
+
+	// Called by doPostInternal and destroy
+	private synchronized void closeDB(final Integer session, final Database db) throws SQLException {
+		logp("Closing database " + db, MyLogger.INFO, "close");
+		if (db != null) {
+			db.close();
+		}
+		SESSIONS.remove(session);
+	}
+
+	// Only called by doPostInternal
+	private void handleUserActions(final Integer session, final HttpServletRequest request) throws SQLException {
+		final String actionsString = request.getParameter("userActions");
 		if (actionsString != null) {
-			Database db = sessions.get(xsession);
-			String[] actions = Util.splitSemicolon(actionsString);
-			for (int i = 0; i < actions.length; i++) {
-				String[] actionString = Util.splitComma(actions[i]);
-				Database.myAssert(actionString.length == 4, "Bad argString: '"
-						+ actions[i] + "' in '" + actionsString + "'");
-				int actionIndex = Integer.parseInt(actionString[0]);
-				int location = Integer.parseInt(actionString[1]);
-				String object = actionString[2];
-				int modifiers = Integer.parseInt(actionString[3]);
-				db.printUserAction(request.getRemoteHost(),
-						xsession.intValue(), actionIndex, location, object,
-						modifiers);
+			@SuppressWarnings("resource")
+			final Database db = SESSIONS.get(session);
+			final String[] actions = UtilString.splitSemicolon(actionsString);
+			for (final String action : actions) {
+				final String[] actionString = UtilString.splitComma(Util.nonNull(action));
+				if (actionString.length != 5) {
+					errorp("Bad argString: '" + action + "' in '" + actionsString + "'", "handleUserActions");
+				}
+				final int actionIndex = Integer.parseInt(actionString[0]);
+				final int location = Integer.parseInt(actionString[1]);
+				final String object = actionString[2];
+				final int modifiers = Integer.parseInt(actionString[3]);
+				final int onCount = Integer.parseInt(actionString[4]);
+				final String remoteHost = request.getRemoteHost();
+				assert remoteHost != null;
+				db.printUserAction(remoteHost, session.intValue(), actionIndex, location, object, modifiers, onCount);
 			}
 		}
 	}
 
-	private static int getIntParameter(HttpServletRequest request,
-			String argSpec) {
-		String arg = request.getParameter(argSpec);
-		return Integer.parseInt(arg);
+	/**
+	 * Only called by doPostInternal
+	 *
+	 * Write selectedItem offset+1 (or 0 if selectedItem no longer satisfies the
+	 * query) and, if nNeighbors>0 or selectedItem no longer satisfies the
+	 * query, the minOffset for items in the rs written by offsetItems.
+	 */
+	private void handleItemIndex(final int selectedItem, final @NonNull OnItemsTable table, final int nNeighbors,
+			final Database db, final @NonNull DataOutputStream out) throws ServletException, SQLException, IOException {
+		if (nNeighbors < 0) {
+			errorp("nNeighbors==" + nNeighbors, "handleItemIndex");
+		}
+		int itemOffset = selectedItem < 0 ? -1 : db.itemOffset(selectedItem, table);
+
+		// servletInterface will subtract 1 from the result.
+		Encoder.writeInt(itemOffset + 1, out);
+
+		if (nNeighbors > 0 || itemOffset < 0) {
+			if (itemOffset < 0) {
+				itemOffset = 0;
+			}
+			final int minOffset = Math.max(0, itemOffset - nNeighbors);
+			final int maxOffsetExclusive = itemOffset + nNeighbors + 1;
+			Encoder.writeInt(minOffset, out);
+			db.offsetItems(minOffset, maxOffsetExclusive, table, out);
+		}
 	}
 
-	private static double getDoubleParameter(HttpServletRequest request,
-			String argSpec) {
-		String arg = request.getParameter(argSpec);
-		return Double.parseDouble(arg);
-	}
-
-	private static boolean getBooleanParameter(HttpServletRequest request,
-			String argSpec) {
+	// Only called by doPostInternal
+	private static boolean getBooleanParameter(final HttpServletRequest request, final String argSpec) {
 		return getIntParameter(request, argSpec) > 0;
 	}
 
-	private boolean isMemberIgnoringCase(String[] dbNames, String dbName) {
-		for (int i = 0; i < dbNames.length; i++) {
-			if (dbNames[i].equalsIgnoreCase(dbName))
-				return true;
-		}
-		return false;
+	private static int getIntParameter(final HttpServletRequest request, final String argSpec) {
+		final String arg = request.getParameter(argSpec);
+		return Integer.parseInt(arg);
 	}
 
 }
