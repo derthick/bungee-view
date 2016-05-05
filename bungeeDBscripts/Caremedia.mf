@@ -1,4 +1,0 @@
-Manifest-Version: 1.0
-Main-Class: edu.cmu.cs.bungee.dbScripts.Caremedia
-Class-Path: mysql-connector-java-5.0.3-bin.jar
-

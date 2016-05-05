@@ -1,51 +1,29 @@
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-</head>
-<body>
+<!DOCTYPE html> <html lang="en-US"> <head> <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1"> <link rel="shortcut icon" href="Images/bungee-2-color.gif" type="image/gif"> <link rel="canonical" href="http://cityscape.inf.cs.cmu.edu/bungee/Edi.html"> <style type="text/css">body{background-color:white}</style> <title>Bungee View Editing Commands</title> </head> <body> <h1>Bungee View Editing Commands</h1> <p> Editing is not very user friendly. There is no indication that you can bring up the editing menus, and there may be no feedback when operations are performed. It is easy to leave the database in an inconsistent state. It's a good idea to expose the Java console (via the Java Control Panel), and check it for error messages if you have a problem. </p> <ul> <li> Editing is only possible if it is enabled for the specific database you are using, and if you have enabled updating the database in the "Custom" dialog from the Mode menu. (This option only appears in the dialog if editing is enabled for your current database.) <br><br></li> <li> Clicking on the text description of the Selected Result breaks it into separate fields, allowing you to edit each field. Type RETURN to update the value, or click somewhere else to revert. To create a new field, use the same format: The &lt;field_name&gt; must be on a line by itself, surrounded by angle brackets. Since typing RETURN updates, you need to use copy and paste to insert the newlines. You should restart Bungee View after creating a new field. <br><br></li> <li> Clicking on a tag or result item with the middle mouse button brings up a menu of edit commands. Clicking on the menu item or typing its number performs the specified operation. <br><br></li> <li> For tags, you can add/remove the tag to/from the Selected Result, or to/from all the current Results. You can also set a "Default Tag", which allows you to add the tag to several items quickly by right-clicking on each item. The number in parentheses after the tag name is its internal database ID, which can aid debugging. <br><br></li> <li> The Default Tag is also used to change the tag hierarchy. After setting the Default Tag, middle click on a different tag and choose "Reparent". The Default Tag will now appear hierarchically under the new tag. To create a new tag, type its name in the Text Search box, middle click on the tag it should go under in the hierarchy, and choose "Add child tag." To add a new top-level tag, choose "Add new tag type" instead of "Add child tag." (When you first create a tag it will only have a single placeholder item, so its bar may be too narrow to see. You may need to use Expert Mode to zoom in on it or bring up the tag list.) You can also rename the clicked-on tag. To delete a tag, remove it from all items. <br><br></li> <li> For result items, there are menu options for rotating the thumbnail the you clicked on, and for adding the Default Tag. <br><br></li> <li> If you have changed the tag hierarchy by creating, deleting, reparenting, or renaming any tags, you must rebuild some database tables before exiting by invoking the "Save changes and exit" menu item. (This may take several minutes; make sure to wait until Bungee View terminates.) If you fail to do this, the database will become corrupt. <br><br></li> <li> If the database becomes corrupt, you can revert to a working version. Bungee View should still function enough to let you click on a tag category and expose the text search box. Type the date you want to revert to in this format: 2008-09-27 13:08:15 Then invoke the REVERT command from the editing menu. Again, make sure to wait until Bungee View terminates. Make sure you don't revert to a time where you were in the middle of editing. It may help to write down every time you Save Changes and Exit, and then wait a few minutes before you start editing again, to make sure the time you revert to falls in this interval. <br><br></li> </ul> <hr> <div style="text-align: right;"> http://cityscape.inf.cs.cmu.edu/bungee/Edi.html <br> <em> Last update: 10 October 2014 </em> <br> <address> <a href="//www.cs.cmu.edu/~mad">Mark Derthick</a> <img id="email-infox" width="60" height="29" src="Images/email-8-color.gif" alt=""><script type="text/javascript">
 
-<h2>Bungee View Editing Commands</h2>
+ function myEmail() {
 
-<p>
-Editing is not very user friendly. There is no indication that you can bring up the editing menus, and there may be no feedback when operations are performed. It is easy to leave the database in an inconsistent state. It's a good idea to expose the Java console (via the Java Control Panel), and check it for error messages if you have a problem.
-</p>
-<p>
-Editing is only possible if it is enabled for the specific database you are using, and if you have enabled updating the database in the "Custom" dialog from the Mode menu. (This option only appears in the dialog if editing is enabled for your current database.)
-</p>
-<p>
-Clicking on the text description of the Selected Result breaks it into separate fields, allowing you to edit each field. Type RETURN to update the value, or click somewhere else to revert. To create a new field, use the same format: The &lt;field_name&gt; must be on a line by itself, surrounded by angle brackets. Since typing RETURN updates, you need to use copy and paste to insert the newlines. You should restart Bungee View after creating a new field.
-</p>
-<p>
-Clicking on a tag or result item with the middle mouse button brings up a menu of edit commands. Clicking on the menu item or typing its number performs the specified operation.
-</p>
-<p>
-For tags, you can add/remove the tag to/from the Selected Result, or to/from all the current Results. You can also set a "Default Tag", which allows you to add the tag to several items quickly by right-clicking on each item. The number in parentheses after the tag name is its internal database ID, which can aid debugging.
-</p>
-<p>
-The Default Tag is also used to change the tag hierarchy. After setting the Default Tag, middle click on a different tag and choose "Reparent". The Default Tag will now appear hierarchically under the new tag. To create a new tag, type its name in the Text Search box, middle click on the tag it should go under in the hierarchy, and choose "Add child tag." To add a new top-level tag, choose "Add new tag type" instead of "Add child tag." (When you first create a tag it will only have a single placeholder item, so its bar may be too narrow to see. You may need to use Expert Mode to zoom in on it or bring up the tag list.)
-You can also rename the clicked-on tag. To delete a tag, remove it from all items.
-</p>
-<p>
-For result items, there are menu options for rotating the thumbnail the you clicked on, and for adding the Default Tag. 
-</p>
-<p>
-If you have changed the tag hierarchy by creating, deleting, reparenting, or renaming any tags, you must rebuild some database tables before exiting by invoking the "Save changes and exit" menu item. (This may take several minutes; make sure to wait until Bungee View terminates.) If you fail to do this, the database will become corrupt.
-</p>
-<p>
-If the database becomes corrupt, you can revert to a working version. Bungee View should still function enough to let you click on a tag category and expose the text search box.
-Type the date you want to revert to in this format: 2008-09-27 13:08:15 Then invoke the REVERT command from the editing menu. Again, make sure to wait until Bungee View terminates. Make sure you don't revert to a time where you were in the middle of editing. It may help to write down every time you Save Changes and Exit, and then wait a few minutes before you start editing again, to make sure the time you revert to falls in this interval.
-</p>
+   var dot = '.';
 
-<hr>
-<div style="text-align: right;">
-<a HREF="http://www.cs.cmu.edu/~mad">Mark Derthick</a>
-(<script type="text/javascript">
-<!--
-document.write('<a href=\"mailt' + 'o:ma' + 'd@c' + 's.cmu.e' + 'du\">');
-document.write('ma' + 'd@c' + 's.cmu.e' + 'du' + '<\/a>');
-//-->
-</script>)
-<br>
-<i> Last update: 8 October 2008 </i>
-</div>
+   var a = '@';
 
-</body>
-</html>
+   var e = 'mad' + a;
+
+       e = e + 'cs' + dot;
+
+       e = e + 'cmu';
+
+       e = e + dot + 'edu';
+
+   var x = '<a href=\"mailt'
+
+       x = x + 'o:' + e + '\">' + e;
+
+       return x + '<\/a>';
+
+ }
+
+ var element = document.getElementById('email-infox');
+
+ element.outerHTML=myEmail();
+
+</script> </address> </div> </body> </html>

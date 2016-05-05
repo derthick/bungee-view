@@ -1,0 +1,29 @@
+<!DOCTYPE html> <html lang="en-US"> <head> <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1"> <link rel="shortcut icon" href="Images/bungee-2-color.gif" type="image/gif"> <link rel="canonical" href="http://cityscape.inf.cs.cmu.edu/bungee/signingDanger.html"> <style type="text/css">body{background-color:white}</style> <title>Unsigned Java programs: Safe?</title> </head> <body> <h1>Unsigned Java programs: Safe?</h1> <p>The Java popup warning you'll see says:</p> <blockquote style="background-color:#D7D7D7"> <p> Clicking Run allows the application to run with limited access that is intended to protect your personal files and other resources on your computer. The application cannot access these resources (for example, the web cam and microphone) without asking for your permission. </p><p> Clicking Cancel prevents the application from running. </p><p> The publisher name is unknown. It is recommended not to run this application unless you are familiar with its source. </p><p> There is no digital signature for this application. </p> </blockquote> <p> This was the original idea behind Java programs accessed via the web; they couldn't do any real harm, so why worry about where they came from? Now the Java Powers That Be want all these programs signed, which may give them extra privileges that <em>can</em> cause real harm. For a few hundred dollars a year, a "trusted authority" will certify that the programs purportedly signed by an individual or organization actually were. You then trust the signatory not to be evil or to accidently leave a security hole. A <a href="//www.cert.org/blogs/certcc/post.cfm?EntryID=158">blog entry</a> from CERT<sup>*</sup> argues that unsigned Java web programs are actually safer than signed ones. </p> <p> For Bungee View, you can verify that you are accessing a web site hosted at Carnegie-Mellon University (cmu.edu). While the University does not subscribe to a Certificate Authority, consider trusting Bungee View as much as you trust CMU and its research projects. </p> <p><small> <sup>*</sup><a href="//www.cert.org/about/">CERT</a>, according to its web site, "is a trusted provider of operationally relevant cybersecurity research and innovative and timely solutions to our nation's cybersecurity challenges." It is largely funded by the US Department of Defense. </small></p> <hr> <div style="text-align: right;"> http://cityscape.inf.cs.cmu.edu/bungee/signingDanger.html <br> <em> Last update: 11 October 2014 </em> <br> <address> <a href="//www.cs.cmu.edu/~mad">Mark Derthick</a> <img id="email-infox" width="60" height="29" src="Images/email-8-color.gif" alt=""><script type="text/javascript">
+
+ function myEmail() {
+
+   var dot = '.';
+
+   var a = '@';
+
+   var e = 'mad' + a;
+
+       e = e + 'cs' + dot;
+
+       e = e + 'cmu';
+
+       e = e + dot + 'edu';
+
+   var x = '<a href=\"mailt'
+
+       x = x + 'o:' + e + '\">' + e;
+
+       return x + '<\/a>';
+
+ }
+
+ var element = document.getElementById('email-infox');
+
+ element.outerHTML=myEmail();
+
+</script> </address> </div> </body> </html>

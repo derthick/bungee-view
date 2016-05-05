@@ -1,104 +1,105 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
-<head> 
-<title>Bungee View image collection browser.  See the forest AND the trees.</title>
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-</head>
-<body> 
+<!DOCTYPE html> <html lang="en-US"> <head> <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1"> <link rel="shortcut icon" href="Images/bungee-2-color.gif" type="image/gif"> <link rel="canonical" href="http://cityscape.inf.cs.cmu.edu/bungee/ChartresVezelay.html"> <style type="text/css">body{background-color:white}</style> <title>Bungee View image collection browser. See the forest AND the trees.</title> <style type="text/css">td.alignTop{vertical-align:text-top}td.w34{width:34%}td.w5{width:5%}td.w26{width:26%}td.w2{width:2%}td.w33{width:33%}p.alignCenterLarge{text-align:center;font-size:230%;margin:0}p.smallMargin{margin:1ex 0}img.fullWidth{width:100%}table.tightTable{padding:0;margin:0;border:0;border-spacing:0;border-collapse:collapse;width:100%}</style> </head> <body> <noscript><iframe src="//www.googletagmanager.com/ns.html?id=GTM-T3W23H" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript> <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 
-<table border="0" cellpadding="0" cellspacing="0">
-<tr>
-<td>
-<h2>Welcome to Bungee View</h2>
-</td>
-<td> <p id="fontSizeSample">
-<font color="#FFFFFF">Foo</font>
-</p></td>
-</tr>
-</table>
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 
-<b>Bungee View</b> is a visualization prototype developed at Carnegie Mellon University to support casual users gaining an understanding of an image collection as a whole, and in finding patterns in such collections.  As a research experiment with the University of Pittsburgh, you can explore two of the <a href="http://images.library.pitt.edu/cgi-bin/i/image/image-idx?c=chartres&page=index">Art and Architecture image collections</a> hosted by the University Library System's <a href="http://digital.library.pitt.edu/">Digital Research Library</a>. 
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
-<p>
-Since this novel way of exploring image collections is a research project, your usage will be recorded to help improve Bungee View. We will use your IP address to track your repeat visits, but will not attempt to identify you as a person. We also welcome feedback to <script type="text/javascript">
-<!--
-document.write('<a href=\"mailt' + 'o:ma' + 'd@c' + 's.cmu.e' + 'du\">');
-document.write('ma' + 'd@c' + 's.cmu.e' + 'du' + '<\/a>');
-//-->
-</script> (<a HREF="http://www.cs.cmu.edu/~mad">Mark Derthick</a>). 
+'//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 
-<h2>Run Bungee View</h2>
+})(window,document,'script','dataLayer','GTM-T3W23H');</script> <h1>See the Forest <em>and</em> the Trees with Bungee View</h1> <p> <strong>Bungee View</strong> is a visualization prototype developed at Carnegie Mellon University to support casual users gaining an understanding of an image collection as a whole, and in finding patterns in such collections. As a research experiment with the University of Pittsburgh, you can explore two of the <a href="//images.library.pitt.edu/cgi-bin/i/image/image-idx?c=chartres&amp;page=index"> Art and Architecture image collections</a> hosted by the University Library System's <a href="//digital.library.pitt.edu/">Digital Research Library</a>. </p> <p id="fontSizeSample"> For a brief tour, watch this <a href="//www.youtube.com/watch?v=Nk7kM2RValg">two minute video</a> or just read its <a href="Transcript.html">transcript</a>. </p> <h1>Run Bungee View</h1> <ol> <li>Click to <a id="bungeeHref" href="bungee.jsp?db=ChartresVezelay">start Bungee View</a> as a Java Web Start application in a new window, or for <a href="BVhelp.html">help</a> if it doesn't start. </li> <li> Once it starts, click on any image, bar, or underlined text. </li> <li> In the figure below, in the blue area at the top, especially notice what's inside the labeled yellow boxes: the <span style="color: #EEEE00;background-color: DarkBlue;font-family: sans-serif">Help Menu</span>, the &ldquo;<span style="color: #EEEE00;background-color: DarkBlue;font-family: sans-serif">You Are Here</span>&rdquo; description of your current query in English, and the description of <span style="color: #EEEE00;background-color: DarkBlue;font-family: sans-serif">What Clicking Will Do</span>. </li> </ol> <figure> <img src="Images/BungeeViewHeaderIndexed.png" alt="Screenshot showing Help Menu, You Are Here, and What Clicking Will Do."> <figcaption> In this screenshot, the heights of the Date bars from the 17th century to the 20th century show that the proportion of works in the collection from North America increases over this period. </figcaption> </figure> <h1 id="mining">Data-Mining with Bungee View</h1> <p> Traditional web search is like finding trees in a forest. Data mining is like finding Tags describing patterns of trees. Tag Clouds are one way to visualize such patterns in text collections. </p> <p> Traditionally, data mining has used structured data, like that found in library card catalogs, rather than raw text. Bungee View uses structured data, and shows the patterns <em>and</em> the trees. Rather than Tag Clouds, it uses two other overview visualizations, Top Tags and Tag Walls: </p> <table id="headTable" class="tightTable"> <tr> <td colspan="5"> <img class="fullWidth" src="Images/TagWallExplained1602x521-16-colors.png" alt="Image of a Tag Cloud and Bungee View's alternative visualizations"> </td> </tr> <tr> <td class="alignTop w34"> <p class="alignCenterLarge">Tag Cloud</p> </td> <td class="alignTop w5"></td> <td class="alignTop w26"> <p class="alignCenterLarge">Top Tags</p> </td> <td class="alignTop w2"></td> <td class="alignTop w33"> <p class="alignCenterLarge">Tag Wall</p> </td> </tr> </table> <p id="scrollCheckboxContainer" style="margin: 0px; display: none; text-align: right; color: green;"> <small> make table scrollable <input id="scrollCheckbox" type="checkbox" onchange="setScrolling()"/> </small> </p> <div id="scrollingDiv" style="overflow: auto; -webkit-overflow-scrolling: touch; max-height: 99999ex;"> <table id="bodyTable" class="tightTable"> <tr id="bodyTableRow"> <td class="alignTop w34"> <p class="smallMargin">Quick <strong>summary</strong> of a set of documents</p> </td> <td class="alignTop w5"></td> <td class="alignTop w26"> <p class="smallMargin">More quantitative <strong>summary</strong></p> </td> <td class="alignTop w2"></td> <td class="alignTop w33"> <p class="smallMargin">Richer <strong>summary</strong></p> </td> </tr> <tr> <td class="alignTop"> <p class="smallMargin">There is no meta-data that &ldquo;20<sup>th</sup> Century&rdquo; is a single concept, which lessens the potential to support <strong>search</strong> </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Supports <strong>search</strong></p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Supports <strong>search</strong></p> </td> </tr> <tr> <td class="alignTop"> <p class="smallMargin">Tag <strong>importance</strong> is shown by font size and color </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Tag <strong>importance</strong> is shown by order, and numerically </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Tag <strong>importance</strong> is shown by rectangle size and shape </p> </td> </tr> <tr> <td class="alignTop"> <p class="smallMargin">Up to <strong>~30</strong> characteristic tags (uncharacteristic tags could be shown using color) </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Up to <strong>~14</strong> characteristic and uncharacteristic tags </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Up to <strong>~300</strong> characteristic and uncharacteristic tags (and even more when you zoom or filter) </p> </td> </tr> <tr> <td></td><td></td><td></td><td></td><td> <p class="smallMargin"><strong>Summarizes Collection:</strong> rectangle width shows that more than half of the works in the collection are from the 20<sup>th</sup> Century </p> </td> </tr> <tr> <td></td><td></td><td></td><td></td><td> <p class="smallMargin"><strong>Compares Subset to Whole:</strong> rectangle height upward and green color shows that the current results include an even higher percentage of 20<sup>th</sup> Century works than the collection as a whole </p> </td> </tr> <tr> <td></td><td></td><td></td><td></td><td> <p class="smallMargin"><strong>Organizes</strong> tags by category, like Date and Format</p> </td> </tr> <tr> <td></td><td></td><td></td><td></td><td> <p class="smallMargin">Systematic and consistent tag layout creates stable &ldquo;<strong>maps</strong>&rdquo; of the collection </p> </td> </tr> <tr> <td> </td> <td></td><td></td><td></td><td> <p class="smallMargin">With hundreds of organized and sorted tags to filter on, you may not even need the <strong>text search</strong> box. This is important in image collections with little text, since the keywords you have in mind may not occur at all. </p> </td> </tr> </table> </div> <h1>Motivation</h1> <p> Web search engines are widely used for information retrieval from unstructured text. The amount of structured and semi-structured information available on the Web is also huge, and is more amenable to data mining. Yet there has been no similar explosion of interest in this kind of data. Finding patterns in databases of political contributions, environmental data, or hospital and school performance would surely interest many citizens. The main research question for this project is how to support such exploration for those with little or no training in statistics or programming. In contrast to other data-mining systems, Bungee View focuses on <strong>learnability</strong>, <strong>responsiveness</strong>, and providing a <strong>satisfying experience</strong>. It has so far been used on image collections because the &ldquo;trees&rdquo; are easy to visualize compactly, while text-based systems have little to work with. </p> <h1>Have a collection?</h1> <p> Let me help you make it available through Bungee View! The <a href="//github.com/derthick/bungee-view/">project site</a> contains the source code and documentation for Bungee View Administrators and Developers. </p> <h1>Privacy</h1> <p> Since this is a research project, your usage will be recorded to help improve Bungee View. We will use your IP address to track your repeat visits, but will not attempt to identify you as a person. </p> <p> Feedback is encouraged. </p> <hr> <div style="text-align: right;"> http://cityscape.inf.cs.cmu.edu/bungee/ChartresVezelay.html <br> <em> Last update: 10 October 2014 </em> <br> <address> <a href="//www.cs.cmu.edu/~mad">Mark Derthick</a> <img id="email-infox" width="60" height="29" src="Images/email-8-color.gif" alt=""><script type="text/javascript">
 
-<ol>
-<li>Click to 
+ function myEmail() {
 
-<noscript>
-<a href="bungee.jsp?db=ChartresVezelay">start Bungee View</a>
-</noscript>
-<script type="text/javascript">
-   var query = window.location.search;
-   if (query.length > 0) 
-   query = "&" + query.substring(1);
-   var par = document.getElementById('fontSizeSample');
-   var parH = Math.round(0.85 * par.offsetHeight);
-   query = "?db=ChartresVezelay&fontSize=" + parH + query;
-document.writeln("<a href=\"bungee.jsp" + query + "\">start Bungee View<\/a>");
-</script>
+   var dot = '.';
 
-as a Java Web Start application in a new window.<sup>*</sup></li>
-<li>Once it starts, click on any underlined text, or on any image or bar. </li>
-<li>For more information, use the Help menu.</li>
-</ol>
+   var a = '@';
 
-<p>
-<sup>*</sup>
-If your browser doesn't know how to open this link, it means you need to <a href=http://java.sun.com/PluginBrowserCheck?pass=http%3A%2F%2Fcityscape.inf.cs.cmu.edu%2Fbungee%2FdownloadJavaWS.html&fail=http%3A%2F%2Fjdl.sun.com%2Fwebapps%2Fgetjava%2FBrowserRedirect%3Flocale%3Den%26host%3Djava.com>install Java</a> 1.4 or later, which includes the Java Web Start plug-in.
+   var e = 'mad' + a;
 
-<p>
-If the new window is stuck at "Waiting for http://cityscape..." and you used Bungee View before February 2007, go to the Java control panel, find Temporary Internet Files, and click the Delete Files button.  This is because cityscape is now a different computer.
+       e = e + 'cs' + dot;
 
-<h2>Data-Mining with Bungee View</h2>
+       e = e + 'cmu';
 
-<img src="Chartres2.jpg">
-<br>
+       e = e + dot + 'edu';
 
-<b>Bungee View</b> lets you <b><i>search, browse, and data-mine</i></b> image collections.  It shows an overview of the entire collection, in addition to the familiar result list and item details of other search interfaces.  
+   var x = '<a href=\"mailt'
 
-<h3>Bar charts provide collection overviews</h3>
+       x = x + 'o:' + e + '\">' + e;
 
-<p>
-For each metadata category, vertical bars show the distribution of images in the collection that match your query.  In the screenshot above, the query is for images of 12th century artifacts.  The row of bars labeled "Material" shows the resulting distribution for Cloth, Glass, Parchment, and Stone.  Wide bars represent Materials that appear in many images in the collections.  Tall bars represent Materials a large fraction of which appear in images that match the query.  For instance, 30% of Stone artifacts are from the 12th century, while only 4% of Glass artifacts are.  The curve superimposed on the percent labels shows the non-linear scale. It distorts the bar heights so that the average value (17% for Material) is half as high as 100%. The blue-gray background indicates this average value.
-</p>
+       return x + '<\/a>';
 
-<p>
-In data-mining terms, there is a positive association between 12th century and Stone, while there is a negative association between 12th century and Glass.  Any bar that extends above the blue-gray background represents a positive association, and vice versa. The bar color indicates whether the association is statistically significant. Gray bars stand for values that are not significantly associated with the query. Muted green bars are positive significant associations (at a significance level of one in ten thousand, using a Chi Squared Test, or for small expected values a Fisher Exact Test). Orange bars are negative significant associations. Both the Stone association and the Glass association are significant. Saturated green and red bars (such as 12th century) are for values that are part of the query.
-</p>
+ }
 
-<h2>Motivation</h2>
+ var element = document.getElementById('email-infox');
 
-Web search engines have attracted widespread demand for information retrieval from unstructured documents. The number of structured and semi-structured documents available on the Web is also huge, and collections of these are more amenable to data mining. Yet there has been no similar explosion of interest in this kind of exploration. Finding patterns in databases of political contributions, environmental data, or hospital and school performance would surely interest many citizens. The main research question for this project is how to support such exploration for users with little or no training in statistics or programming. In contrast to other data-mining systems, Bungee View focuses on learnability, responsiveness,  robustness, and providing a satisfying user experience. 
+ element.outerHTML=myEmail();
 
-<hr>
-<p><small>
-<b>Bungee View</b> version 2/2007, Copyright (C) 2007 Mark Derthick<br>
-Bungee View comes with ABSOLUTELY NO WARRANTY; This is free software, 
-and you are welcome to redistribute it under certain conditions; Choose 
-"About Bungee View" on the Help menu for details.
-</small>
-</p>
+</script> </address> </div> <script type="text/javascript">
 
-<hr>
-<div style="text-align: right;">
-<a HREF="http://www.cs.cmu.edu/~mad">Mark Derthick</a>
-(<script type="text/javascript">
-<!--
-document.write('<a href=\"mailt' + 'o:ma' + 'd@c' + 's.cmu.e' + 'du\">');
-document.write('ma' + 'd@c' + 's.cmu.e' + 'du' + '<\/a>');
-//-->
-</script>)
-<br>
-<i> Last update: 1 March 2007 </i>
-</div>
+  var par = document.getElementById('fontSizeSample');
 
-</body>
-</html> 
+  var query = window.location.search;
+
+  query += (query.length > 0) ? "&" : "?";
+
+  <!-- The par.scrollHeight reference below causes TWO reflows! -->
+
+  var parH = Math.max(Math.round(0.75 * par.scrollHeight), 8);
+
+  query += "fontSize=" + parH;
+
+  var href = document.getElementById('bungeeHref');
+
+  href.href = "bungee.jsp" + query;
+
+
+
+
+
+  <!-- Having everything in one script seems to reduce reflows by 1. -->
+
+  function setScrolling() {
+
+    var howMuchRoom = 
+
+      window.innerHeight - document.getElementById("headTable").offsetHeight;
+
+    var isShowCheckbox =
+
+      howMuchRoom < document.getElementById("bodyTable").scrollHeight;
+
+
+
+    var visibility = "none";
+
+    if (isShowCheckbox)
+
+      visibility = "";
+
+    document.getElementById("scrollCheckboxContainer").style.display = visibility;
+
+
+
+    var maxH = 99999
+
+    if (isShowCheckbox && document.getElementById("scrollCheckbox").checked) {
+
+      maxH = Math.max(300, howMuchRoom);
+
+    }
+
+    document.getElementById("scrollingDiv").style.maxHeight = maxH + "px";
+
+
+
+    var headW = document.getElementById("bodyTableRow").clientWidth;
+
+    document.getElementById("headTable").style.width = headW + "px";
+
+  }
+
+  setScrolling();
+
+  window.onresize = setScrolling;
+
+</script> </body> </html>

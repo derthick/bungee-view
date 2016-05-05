@@ -1,566 +1,105 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
-<head>
-<title>Bungee View image collection browser</title>
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-</head>
+<!DOCTYPE html> <html lang="en-US"> <head> <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1"> <link rel="shortcut icon" href="Images/bungee-2-color.gif" type="image/gif"> <link rel="canonical" href="http://cityscape.inf.cs.cmu.edu/bungee/"> <style type="text/css">body{background-color:white}</style> <title>Bungee View image collection browser. See the forest AND the trees.</title> <style type="text/css">td.alignTop{vertical-align:text-top}td.w34{width:34%}td.w5{width:5%}td.w26{width:26%}td.w2{width:2%}td.w33{width:33%}p.alignCenterLarge{text-align:center;font-size:230%;margin:0}p.smallMargin{margin:1ex 0}img.fullWidth{width:100%}table.tightTable{padding:0;margin:0;border:0;border-spacing:0;border-collapse:collapse;width:100%}</style> </head> <body> <noscript><iframe src="//www.googletagmanager.com/ns.html?id=GTM-T3W23H" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript> <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 
-<body lang=EN-US>
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 
-<table border="0" cellpadding="0" cellspacing="0">
-<tr>
-<td>
-<h2>Welcome to Bungee View</h2>
-</td>
-<td>
-<p id="fontSizeSample">
-<font color="#FFFFFF">Foo</font>
-</p>
-</td>
-</tr>
-</table>
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
-<p><b>Bungee View</b> is designed to support non-technical
-users in gaining an understanding of an image collection as a whole, and in
-finding patterns in their meta-data, while they search and browse. Since this
-is a research project, your usage will be recorded to help improve Bungee View.
-We will use your IP address to track your repeat visits, but will not attempt
-to identify you as a person. Feedback is welcome at <script  type="text/javascript">
-<!--
-document.write('<a href=\"mailt' + 'o:ma' + 'd@c' + 's.cmu.e' + 'du\">');
-document.write('ma' + 'd@c' + 's.cmu.e' + 'du' + '<\/a>');
-//-->
-</script> (<a href="http://www.cs.cmu.edu/~mad">Mark Derthick</a>). </p>
+'//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 
-<p>For a brief tour, watch this <b>two minute video</b> as an <a
-href="http://www.cs.cmu.edu/~mad/Bungee/LoC/AmericanMemory.avi">avi</a> or a worse quality <a
-href="http://www.cs.cmu.edu/~mad/Bungee/LoC/AmericanMemory.mov">mov</a> (<a href="http://www.divx.com/divx/">the DivX codec</a> should work for either). </p>
+})(window,document,'script','dataLayer','GTM-T3W23H');</script> <h1>See the Forest <em>and</em> the Trees with Bungee View</h1> <p> Bungee View shows an overview of an image collection while you search and browse. This includes its <strong>coverage</strong> in terms of themes, dates or locations, as well as the <strong>relationships</strong> among them. For instance, religous images have become less common over the centuries in the Fine Arts Museums of San Francisco collection. </p> <p style="margin: 0ex 0ex -2ex;"> Available collections include: </p> <ul> <li> <a href="//memory.loc.gov/ammem/index.html">American Memory</a> from the Library of Congress </li> <li> <a href="//www.famsf.org/">Fine Arts Museums of San Francisco</a> </li> <li> <a href="//digital.library.pitt.edu/pittsburgh/">Historic Pittsburgh</a> from the University of Pittsburgh's <a href="//bts.library.pitt.edu/sites/DRL/documentation/Home.aspx"> Digital Research Library</a> </li> </ul> <p id="fontSizeSample"> For a brief tour, watch this <a href="//www.youtube.com/watch?v=Nk7kM2RValg">two minute video</a> or just read its <a href="Transcript.html">transcript</a>. </p> <h1>Run Bungee View</h1> <ol> <li>Click to <a id="bungeeHref" href="bungee.jsp">start Bungee View</a> as a Java Web Start application in a new window, or for <a href="BVhelp.html">help</a> if it doesn't start. </li> <li> Once it starts, click on any image, bar, or underlined text. </li> <li> In the figure below, in the blue area at the top, especially notice what's inside the labeled yellow boxes: the <span style="color: #EEEE00;background-color: DarkBlue;font-family: sans-serif">Help Menu</span>, the &ldquo;<span style="color: #EEEE00;background-color: DarkBlue;font-family: sans-serif">You Are Here</span>&rdquo; description of your current query in English, and the description of <span style="color: #EEEE00;background-color: DarkBlue;font-family: sans-serif">What Clicking Will Do</span>. </li> </ol> <figure> <img src="Images/BungeeViewHeaderIndexed.png" alt="Screenshot showing Help Menu, You Are Here, and What Clicking Will Do."> <figcaption> In this screenshot, the heights of the Date bars from the 17th century to the 20th century show that the proportion of works in the collection from North America increases over this period. </figcaption> </figure> <h1 id="mining">Data-Mining with Bungee View</h1> <p> Traditional web search is like finding trees in a forest. Data mining is like finding Tags describing patterns of trees. Tag Clouds are one way to visualize such patterns in text collections. </p> <p> Traditionally, data mining has used structured data, like that found in library card catalogs, rather than raw text. Bungee View uses structured data, and shows the patterns <em>and</em> the trees. Rather than Tag Clouds, it uses two other overview visualizations, Top Tags and Tag Walls: </p> <table id="headTable" class="tightTable"> <tr> <td colspan="5"> <img class="fullWidth" src="Images/TagWallExplained1602x521-16-colors.png" alt="Image of a Tag Cloud and Bungee View's alternative visualizations"> </td> </tr> <tr> <td class="alignTop w34"> <p class="alignCenterLarge">Tag Cloud</p> </td> <td class="alignTop w5"></td> <td class="alignTop w26"> <p class="alignCenterLarge">Top Tags</p> </td> <td class="alignTop w2"></td> <td class="alignTop w33"> <p class="alignCenterLarge">Tag Wall</p> </td> </tr> </table> <p id="scrollCheckboxContainer" style="margin: 0px; display: none; text-align: right; color: green;"> <small> make table scrollable <input id="scrollCheckbox" type="checkbox" onchange="setScrolling()"/> </small> </p> <div id="scrollingDiv" style="overflow: auto; -webkit-overflow-scrolling: touch; max-height: 99999ex;"> <table id="bodyTable" class="tightTable"> <tr id="bodyTableRow"> <td class="alignTop w34"> <p class="smallMargin">Quick <strong>summary</strong> of a set of documents</p> </td> <td class="alignTop w5"></td> <td class="alignTop w26"> <p class="smallMargin">More quantitative <strong>summary</strong></p> </td> <td class="alignTop w2"></td> <td class="alignTop w33"> <p class="smallMargin">Richer <strong>summary</strong></p> </td> </tr> <tr> <td class="alignTop"> <p class="smallMargin">There is no meta-data that &ldquo;20<sup>th</sup> Century&rdquo; is a single concept, which lessens the potential to support <strong>search</strong> </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Supports <strong>search</strong></p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Supports <strong>search</strong></p> </td> </tr> <tr> <td class="alignTop"> <p class="smallMargin">Tag <strong>importance</strong> is shown by font size and color </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Tag <strong>importance</strong> is shown by order, and numerically </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Tag <strong>importance</strong> is shown by rectangle size and shape </p> </td> </tr> <tr> <td class="alignTop"> <p class="smallMargin">Up to <strong>~30</strong> characteristic tags (uncharacteristic tags could be shown using color) </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Up to <strong>~14</strong> characteristic and uncharacteristic tags </p> </td> <td></td> <td class="alignTop"> <p class="smallMargin">Up to <strong>~300</strong> characteristic and uncharacteristic tags (and even more when you zoom or filter) </p> </td> </tr> <tr> <td></td><td></td><td></td><td></td><td> <p class="smallMargin"><strong>Summarizes Collection:</strong> rectangle width shows that more than half of the works in the collection are from the 20<sup>th</sup> Century </p> </td> </tr> <tr> <td></td><td></td><td></td><td></td><td> <p class="smallMargin"><strong>Compares Subset to Whole:</strong> rectangle height upward and green color shows that the current results include an even higher percentage of 20<sup>th</sup> Century works than the collection as a whole </p> </td> </tr> <tr> <td></td><td></td><td></td><td></td><td> <p class="smallMargin"><strong>Organizes</strong> tags by category, like Date and Format</p> </td> </tr> <tr> <td></td><td></td><td></td><td></td><td> <p class="smallMargin">Systematic and consistent tag layout creates stable &ldquo;<strong>maps</strong>&rdquo; of the collection </p> </td> </tr> <tr> <td> </td> <td></td><td></td><td></td><td> <p class="smallMargin">With hundreds of organized and sorted tags to filter on, you may not even need the <strong>text search</strong> box. This is important in image collections with little text, since the keywords you have in mind may not occur at all. </p> </td> </tr> </table> </div> <h1>Motivation</h1> <p> Web search engines are widely used for information retrieval from unstructured text. The amount of structured and semi-structured information available on the Web is also huge, and is more amenable to data mining. Yet there has been no similar explosion of interest in this kind of data. Finding patterns in databases of political contributions, environmental data, or hospital and school performance would surely interest many citizens. The main research question for this project is how to support such exploration for those with little or no training in statistics or programming. In contrast to other data-mining systems, Bungee View focuses on <strong>learnability</strong>, <strong>responsiveness</strong>, and providing a <strong>satisfying experience</strong>. It has so far been used on image collections because the &ldquo;trees&rdquo; are easy to visualize compactly, while text-based systems have little to work with. </p> <h1>Have a collection?</h1> <p> Let me help you make it available through Bungee View! The <a href="//github.com/derthick/bungee-view/">project site</a> contains the source code and documentation for Bungee View Administrators and Developers. </p> <h1>Privacy</h1> <p> Since this is a research project, your usage will be recorded to help improve Bungee View. We will use your IP address to track your repeat visits, but will not attempt to identify you as a person. </p> <p> Feedback is encouraged. </p> <hr> <div style="text-align: right;"> http://cityscape.inf.cs.cmu.edu/bungee/ <br> <em> Last update: 04 May 2016 </em> <br> <address> <a href="//www.cs.cmu.edu/~mad">Mark Derthick</a> <img id="email-infox" width="60" height="29" src="Images/email-8-color.gif" alt=""><script type="text/javascript">
 
+ function myEmail() {
 
-<h2>Run Bungee View</h2>
+   var dot = '.';
 
-<ol>
- <li>Click to <noscript><a
-     href="bungee.jsp">start Bungee View</a> </noscript><script  type="text/javascript">
-   var query = window.location.search;
-   if (query.length > 0) 
-   query = "&" + query.substring(1);
-   var par = document.getElementById('fontSizeSample');
-   var parH = Math.round(0.75 * par.offsetHeight);
-   query = "?fontSize=" + parH + query;
-document.writeln("<a href=\"bungee.jsp" + query + "\">start Bungee View<\/a>");
-     </script>as a Java Web Start application in a new window.<sup>*</sup></li>
- <li>Once it starts, click on any
-     underlined text, or on any image or bar. </li>
- <li>For more information, use the
-     Help menu.</li>
-</ol>
+   var a = '@';
 
-<p><sup>*</sup> If your browser doesn't know how to open this link, it means
-you need to <a
-href="http://java.sun.com/PluginBrowserCheck?pass=http%3A%2F%2Fcityscape.inf.cs.cmu.edu%2Fbungee%2FdownloadJavaWS.html&amp;fail=http%3A%2F%2Fjdl.sun.com%2Fwebapps%2Fgetjava%2FBrowserRedirect%3Flocale%3Den%26host%3Djava.com">install
-Java</a> 1.4 or later, which includes the Java Web Start plug-in. </p>
+   var e = 'mad' + a;
 
-<h2><a name=mining>Data-Mining with Bungee View</a></h2>
+       e = e + 'cs' + dot;
 
-<!--[if !mso]>
-<style>
-v\:* {behavior:url(#default#VML);}
-o\:* {behavior:url(#default#VML);}
-w\:* {behavior:url(#default#VML);}
-.shape {behavior:url(#default#VML);}
-</style>
-<![endif]-->
-<title>+</title>
-<!--[if gte mso 9]><xml>
- <o:DocumentProperties>
-  <o:Author>mad</o:Author>
-  <o:LastAuthor>mad</o:LastAuthor>
-  <o:Revision>6</o:Revision>
-  <o:TotalTime>2344</o:TotalTime>
-  <o:Created>2008-06-15T03:00:00Z</o:Created>
-  <o:LastSaved>2008-06-16T18:05:00Z</o:LastSaved>
-  <o:Pages>1</o:Pages>
-  <o:Words>165</o:Words>
-  <o:Characters>945</o:Characters>
-  <o:Company>Carnegie Mellon University</o:Company>
-  <o:Lines>7</o:Lines>
-  <o:Paragraphs>2</o:Paragraphs>
-  <o:CharactersWithSpaces>1108</o:CharactersWithSpaces>
-  <o:Version>11.9999</o:Version>
- </o:DocumentProperties>
-</xml><![endif]--><!--[if gte mso 9]><xml>
- <w:WordDocument>
-  <w:SpellingState>Clean</w:SpellingState>
-  <w:GrammarState>Clean</w:GrammarState>
-  <w:PunctuationKerning/>
-  <w:ValidateAgainstSchemas/>
-  <w:SaveIfXMLInvalid>false</w:SaveIfXMLInvalid>
-  <w:IgnoreMixedContent>false</w:IgnoreMixedContent>
-  <w:AlwaysShowPlaceholderText>false</w:AlwaysShowPlaceholderText>
-  <w:Compatibility>
-   <w:BreakWrappedTables/>
-   <w:SnapToGridInCell/>
-   <w:WrapTextWithPunct/>
-   <w:UseAsianBreakRules/>
-   <w:DontGrowAutofit/>
-  </w:Compatibility>
-  <w:BrowserLevel>MicrosoftInternetExplorer4</w:BrowserLevel>
- </w:WordDocument>
-</xml><![endif]--><!--[if gte mso 9]><xml>
- <w:LatentStyles DefLockedState="false" LatentStyleCount="156">
- </w:LatentStyles>
-</xml><![endif]-->
-<style>
-<!--
- /* Font Definitions */
- @font-face
-	{font-family:Wingdings;
-	panose-1:5 0 0 0 0 0 0 0 0 0;
-	mso-font-charset:2;
-	mso-generic-font-family:auto;
-	mso-font-pitch:variable;
-	mso-font-signature:0 268435456 0 0 -2147483648 0;}
- /* Style Definitions */
- p.MsoNormal, li.MsoNormal, div.MsoNormal
-	{mso-style-parent:"";
-	margin:0in;
-	margin-bottom:.0001pt;
-	mso-pagination:widow-orphan;
-	font-size:12.0pt;
-	font-family:"Times New Roman";
-	mso-fareast-font-family:"Times New Roman";}
-p.Normal18pt, li.Normal18pt, div.Normal18pt
-	{mso-style-name:"Normal + 18 pt\,Bold";
-	margin:0in;
-	margin-bottom:.0001pt;
-	mso-pagination:widow-orphan;
-	font-size:20.0pt;
-	font-family:"Times New Roman";
-	mso-fareast-font-family:"Times New Roman";
-	font-weight:bold;
-	mso-bidi-font-weight:normal;}
-p.Normal16pt, li.Normal16pt, div.Normal16pt
-	{mso-style-name:"Normal + 16 pt\,Bold + Not Bold";
-	mso-style-parent:"Normal + 18 pt\,Bold";
-	margin:0in;
-	margin-bottom:.0001pt;
-	mso-pagination:widow-orphan;
-	font-size:20.0pt;
-	font-family:"Times New Roman";
-	mso-fareast-font-family:"Times New Roman";}
-@page Section1
-	{size:8.5in 11.0in;
-	margin:1.0in 1.25in 1.0in 1.25in;
-	mso-header-margin:.5in;
-	mso-footer-margin:.5in;
-	mso-paper-source:0;}
-div.Section1
-	{page:Section1;}
- /* List Definitions */
- @list l0
-	{mso-list-id:89787136;
-	mso-list-type:hybrid;
-	mso-list-template-ids:1722954170 -1897348014 67698691 67698693 67698689 67698691 67698693 67698689 67698691 67698693;}
-@list l0:level1
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0B7;
-	mso-level-tab-stop:.1in;
-	mso-level-number-position:left;
-	margin-left:.25in;
-	text-indent:-.15in;
-	font-family:Symbol;}
-@list l1
-	{mso-list-id:1210991639;
-	mso-list-template-ids:-1307440300;}
-@list l1:level1
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0B7;
-	mso-level-tab-stop:.1in;
-	mso-level-number-position:left;
-	margin-left:.25in;
-	text-indent:-.15in;
-	font-family:Symbol;}
-@list l1:level2
-	{mso-level-number-format:bullet;
-	mso-level-text:o;
-	mso-level-tab-stop:1.0in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:"Courier New";}
-@list l1:level3
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0A7;
-	mso-level-tab-stop:1.5in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Wingdings;}
-@list l1:level4
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0B7;
-	mso-level-tab-stop:2.0in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Symbol;}
-@list l1:level5
-	{mso-level-number-format:bullet;
-	mso-level-text:o;
-	mso-level-tab-stop:2.5in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:"Courier New";}
-@list l1:level6
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0A7;
-	mso-level-tab-stop:3.0in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Wingdings;}
-@list l1:level7
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0B7;
-	mso-level-tab-stop:3.5in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Symbol;}
-@list l1:level8
-	{mso-level-number-format:bullet;
-	mso-level-text:o;
-	mso-level-tab-stop:4.0in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:"Courier New";}
-@list l1:level9
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0A7;
-	mso-level-tab-stop:4.5in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Wingdings;}
-@list l2
-	{mso-list-id:1511674387;
-	mso-list-type:hybrid;
-	mso-list-template-ids:-1307440300 -1897348014 67698691 67698693 67698689 67698691 67698693 67698689 67698691 67698693;}
-@list l2:level1
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0B7;
-	mso-level-tab-stop:.1in;
-	mso-level-number-position:left;
-	margin-left:.25in;
-	text-indent:-.15in;
-	font-family:Symbol;}
-@list l2:level2
-	{mso-level-number-format:bullet;
-	mso-level-text:o;
-	mso-level-tab-stop:1.0in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:"Courier New";}
-@list l3
-	{mso-list-id:1755515956;
-	mso-list-template-ids:-1307440300;}
-@list l3:level1
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0B7;
-	mso-level-tab-stop:.1in;
-	mso-level-number-position:left;
-	margin-left:.25in;
-	text-indent:-.15in;
-	font-family:Symbol;}
-@list l3:level2
-	{mso-level-number-format:bullet;
-	mso-level-text:o;
-	mso-level-tab-stop:1.0in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:"Courier New";}
-@list l3:level3
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0A7;
-	mso-level-tab-stop:1.5in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Wingdings;}
-@list l3:level4
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0B7;
-	mso-level-tab-stop:2.0in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Symbol;}
-@list l3:level5
-	{mso-level-number-format:bullet;
-	mso-level-text:o;
-	mso-level-tab-stop:2.5in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:"Courier New";}
-@list l3:level6
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0A7;
-	mso-level-tab-stop:3.0in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Wingdings;}
-@list l3:level7
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0B7;
-	mso-level-tab-stop:3.5in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Symbol;}
-@list l3:level8
-	{mso-level-number-format:bullet;
-	mso-level-text:o;
-	mso-level-tab-stop:4.0in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:"Courier New";}
-@list l3:level9
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0A7;
-	mso-level-tab-stop:4.5in;
-	mso-level-number-position:left;
-	text-indent:-.25in;
-	font-family:Wingdings;}
-@list l4
-	{mso-list-id:2130395217;
-	mso-list-type:hybrid;
-	mso-list-template-ids:1542338458 -1897348014 67698691 67698693 67698689 67698691 67698693 67698689 67698691 67698693;}
-@list l4:level1
-	{mso-level-number-format:bullet;
-	mso-level-text:\F0B7;
-	mso-level-tab-stop:.1in;
-	mso-level-number-position:left;
-	margin-left:.25in;
-	text-indent:-.15in;
-	font-family:Symbol;}
-ol
-	{margin-bottom:0in;}
-ul
-	{margin-bottom:0in;}
--->
-</style>
-<!--[if gte mso 10]>
-<style>
- /* Style Definitions */
- table.MsoNormalTable
-	{mso-style-name:"Table Normal";
-	mso-tstyle-rowband-size:0;
-	mso-tstyle-colband-size:0;
-	mso-style-noshow:yes;
-	mso-style-parent:"";
-	mso-padding-alt:0in 5.4pt 0in 5.4pt;
-	mso-para-margin:0in;
-	mso-para-margin-bottom:.0001pt;
-	mso-pagination:widow-orphan;
-	font-size:10.0pt;
-	font-family:"Times New Roman";
-	mso-ansi-language:#0400;
-	mso-fareast-language:#0400;
-	mso-bidi-language:#0400;}
-table.MsoTableGrid
-	{mso-style-name:"Table Grid";
-	mso-tstyle-rowband-size:0;
-	mso-tstyle-colband-size:0;
-	border:solid windowtext 1.0pt;
-	mso-border-alt:solid windowtext .5pt;
-	mso-padding-alt:0in 5.4pt 0in 5.4pt;
-	mso-border-insideh:.5pt solid windowtext;
-	mso-border-insidev:.5pt solid windowtext;
-	mso-para-margin:0in;
-	mso-para-margin-bottom:.0001pt;
-	mso-pagination:widow-orphan;
-	font-size:10.0pt;
-	font-family:"Times New Roman";
-	mso-ansi-language:#0400;
-	mso-fareast-language:#0400;
-	mso-bidi-language:#0400;}
-</style>
-<![endif]-->
-</head>
+       e = e + 'cmu';
 
-<body lang=EN-US style='tab-interval:.5in'>
+       e = e + dot + 'edu';
 
-<div class=Section1>
+   var x = '<a href=\"mailt'
 
-<p >Bungee View enhances
-browsing image collections with two overview visualizations that replace Tag
-Clouds:</p>
+       x = x + 'o:' + e + '\">' + e;
 
-<p class=MsoNormal><o:p>&nbsp;</o:p></p>
+       return x + '<\/a>';
 
-<table class=MsoTableGrid border=0 cellspacing=0 cellpadding=0 width=1128
- style='width:11.75in;border-collapse:collapse;mso-yfti-tbllook:480;mso-padding-alt:
- 0in 5.4pt 0in 5.4pt'>
- <tr style='mso-yfti-irow:0;mso-yfti-firstrow:yes'>
-  <td width=1128 colspan=5 valign=top style='width:11.75in;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal><span style='font-size:20.0pt'><img width=1110 height=367
-  src="TagWallExplained.gif"></span></p>
-  </td>
- </tr>
- <tr style='mso-yfti-irow:1'>
-  <td width=384 valign=top style='width:4.0in;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal><o:p>&nbsp;</o:p></p>
-  </td>
-  <td width=60 valign=top style='width:45.0pt;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal><o:p>&nbsp;</o:p></p>
-  </td>
-  <td width=288 valign=top style='width:3.0in;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal><o:p>&nbsp;</o:p></p>
-  </td>
-  <td width=36 valign=top style='width:27.0pt;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal><o:p>&nbsp;</o:p></p>
-  </td>
-  <td width=360 valign=top style='width:3.75in;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal><o:p>&nbsp;</o:p></p>
-  </td>
- </tr>
- <tr style='mso-yfti-irow:2'>
-  <td width=384 valign=top style='width:4.0in;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal align=center style='text-align:center'><span
-  style='font-size:28.0pt'>Tag Cloud<o:p></o:p></span></p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l0 level1 lfo2;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]>Quickly<b style='mso-bidi-font-weight:normal'>
-  summarizes</b> a set of documents</p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l0 level1 lfo2;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]>Up to<b style='mso-bidi-font-weight:normal'> ~30</b>
-  characteristic tags</p>
-  </td>
-  <td width=60 valign=top style='width:45.0pt;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal align=center style='text-align:center'><span
-  style='font-size:28.0pt'><o:p>&nbsp;</o:p></span></p>
-  </td>
-  <td width=288 valign=top style='width:4.2in;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal align=center style='text-align:center'><span
-  style='font-size:28.0pt'>Top Tags<o:p></o:p></span></p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l4 level1 lfo3;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]>Quickly<b style='mso-bidi-font-weight:normal'>
-  summarizes</b> a set of documents</p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l4 level1 lfo3;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]>Up to<b style='mso-bidi-font-weight:normal'> ~30</b>
-  characteristic and <b style='mso-bidi-font-weight:
-  normal'>uncharacteristic</b>
-  tags</p>
-  </td>
-  <td width=6 valign=top style='width:7.0pt;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal><span style='font-size:20.0pt'><o:p>&nbsp;</o:p></span></p>
-  </td>
-  <td width=60 valign=top style='width:4.75in;padding:0in 5.4pt 0in 5.4pt'>
-  <p class=MsoNormal align=center style='text-align:center'><span
-  style='font-size:28.0pt'>Tag Wall<o:p></o:p></span></p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l2 level1 lfo1;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]>More quantitative and detailed summaries, and also
-  supports searching and filtering </p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l2 level1 lfo1;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]><b style='mso-bidi-font-weight:normal'>Summarizes:
-  </b>rectangle<b style='mso-bidi-font-weight:normal'> </b>width shows that more
-  than half of the works in the collection are from the 20<sup>th</sup> century</p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l2 level1 lfo1;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]><b style='mso-bidi-font-weight:normal'>Compares:</b>
-  rectangle height upward and green color shows that the current result set
-  includes an even higher percentage of 20<sup>th</sup> century works than the
-  collection as a whole.</p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l2 level1 lfo1;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]>Up to<b style='mso-bidi-font-weight:normal'> ~1000</b>
-  tags (and even more when you zoom or filter)</p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l2 level1 lfo1;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]><b style='mso-bidi-font-weight:normal'>Organizes</b>
-  tags by category, like Date and Format</p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l2 level1 lfo1;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]>Systematic and consistent tag layout creates stable
-  “<b style='mso-bidi-font-weight:normal'>maps</b>” of the collection</p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l2 level1 lfo1;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]>Shows what is <b style='mso-bidi-font-weight:
-  normal'>not</b> present</p>
-  <p class=MsoNormal style='margin-left:.25in;text-indent:-.15in;mso-list:l2 level1 lfo1;
-  tab-stops:list .1in'><![if !supportLists]><span style='font-family:Symbol;
-  mso-fareast-font-family:Symbol;mso-bidi-font-family:Symbol'><span
-  style='mso-list:Ignore'>·<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp;
-  </span></span></span><![endif]>With thousands of organized and sorted tags to
-  filter on, you may not even need the text search box. This is important in
-  image collections with little text, since the keywords you have in mind may
-  not occur at all.</p>
-  </td>
- </tr>
- 
- 
-</table>
+ }
 
-<p class=MsoNormal><o:p>&nbsp;</o:p></p>
+ var element = document.getElementById('email-infox');
+
+ element.outerHTML=myEmail();
+
+</script> </address> </div> <script type="text/javascript">
+
+  var par = document.getElementById('fontSizeSample');
+
+  var query = window.location.search;
+
+  query += (query.length > 0) ? "&" : "?";
+
+  <!-- The par.scrollHeight reference below causes TWO reflows! -->
+
+  var parH = Math.max(Math.round(0.75 * par.scrollHeight), 8);
+
+  query += "fontSize=" + parH;
+
+  var href = document.getElementById('bungeeHref');
+
+  href.href = "bungee.jsp" + query;
 
 
-<h2>Motivation</h2>
 
-<p>Web search engines have attracted widespread demand for
-information retrieval from unstructured documents. The number of structured and
-semi-structured documents available on the Web is also huge, and collections of
-these are more amenable to data mining. Yet there has been no similar explosion
-of interest in this kind of exploration. Finding patterns in databases of
-political contributions, environmental data, or hospital and school performance
-would surely interest many citizens. The main research question for this
-project is how to support such exploration for users with little or no training
-in statistics or programming. In contrast to other data-mining systems, Bungee
-View focuses on learnability, responsiveness,
-robustness, and providing a satisfying user experience. </p>
 
-<h2>Have a collection?</h2>
-Let me help you make it available through Bungee View! The <a href="http://code.google.com/p/bungee-view/">project site</a> contains the source code and documentation for Bungee View Administrators and Developers.
 
-<hr>
-<p><small>
-<b>Bungee View</b> version 11/2007, Copyright (C) 2007 Mark Derthick<br>
-Bungee View comes with ABSOLUTELY NO WARRANTY; This is free software, 
-and you are welcome to redistribute it under certain conditions; Choose 
-"About Bungee View" on the Help menu for details.
-</small>
-</p>
+  <!-- Having everything in one script seems to reduce reflows by 1. -->
 
-<hr>
-<div style="text-align: right;">
-<a HREF="http://www.cs.cmu.edu/~mad">Mark Derthick</a>
-(<script type="text/javascript">
-<!--
-document.write('<a href=\"mailt' + 'o:ma' + 'd@c' + 's.cmu.e' + 'du\">');
-document.write('ma' + 'd@c' + 's.cmu.e' + 'du' + '<\/a>');
-//-->
-</script>)
-<br>
-<i> Last update: 17 October 2008 </i>
-</div>
+  function setScrolling() {
 
-</body>
-</html> 
+    var howMuchRoom = 
+
+      window.innerHeight - document.getElementById("headTable").offsetHeight;
+
+    var isShowCheckbox =
+
+      howMuchRoom < document.getElementById("bodyTable").scrollHeight;
+
+
+
+    var visibility = "none";
+
+    if (isShowCheckbox)
+
+      visibility = "";
+
+    document.getElementById("scrollCheckboxContainer").style.display = visibility;
+
+
+
+    var maxH = 99999
+
+    if (isShowCheckbox && document.getElementById("scrollCheckbox").checked) {
+
+      maxH = Math.max(300, howMuchRoom);
+
+    }
+
+    document.getElementById("scrollingDiv").style.maxHeight = maxH + "px";
+
+
+
+    var headW = document.getElementById("bodyTableRow").clientWidth;
+
+    document.getElementById("headTable").style.width = headW + "px";
+
+  }
+
+  setScrolling();
+
+  window.onresize = setScrolling;
+
+</script> </body> </html>

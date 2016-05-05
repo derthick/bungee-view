@@ -1,72 +1,95 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
-<head> 
-<title>About Bungee View</title>
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-</head>
-<body>
+<!DOCTYPE html> <html lang="en-US"> <head> <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1"> <link rel="shortcut icon" href="Images/bungee-2-color.gif" type="image/gif"> <link rel="canonical" href="http://cityscape.inf.cs.cmu.edu/bungee/Abo.html"> <style type="text/css">body{background-color:white}</style> <title>About Bungee View</title> </head> <body> <h1>About Bungee View</h1> <p>Bungee View lets you search, browse, and data-mine an image collection. Bungee View is under active development. I will appreciate any comments you send to <img id="email-infox" width="60" height="29" src="Images/email-8-color.gif" alt=""><script type="text/javascript">
 
-<h2>About Bungee View</h2>
+ function myEmail() {
 
-<p>Bungee View lets you search, browse, and data-mine an image collection.  
-Bungee View is under active development.&nbsp; I will appreciate any
-comments you send to
+   var dot = '.';
 
-<script type="text/javascript">
-<!--
+   var a = '@';
 
-function replacePluses(s) {
-var temp = new Array();
-temp = s.split('+');
-return temp.join(" ");
-}
+   var e = 'mad' + a;
 
-document.write("<a href=\"mailt" + "o:ma" + "d@c" + "s.cmu.e" + "du\">");
-document.write("ma" + "d@c" + "s.cmu.e" + "du" + "<\/a>");
+       e = e + 'cs' + dot;
 
-var bugInfo = document.location.search;
-if (bugInfo.length > 1) {
-bugInfo = escape("Please describe the problem you had with Bungee View here:\n\n\n\n\n\n\n\n\n\n________________________________________________________________________\n" + navigator.appName + " " + navigator.appVersion + " on " + navigator.platform + "\n" + navigator.plugins + " " + navigator.userAgent + "\n\n") +  replacePluses(bugInfo.substring(1));
-document.write(".  <p> Or send a <a href=\"mailt" + "o:ma" + "d@c" + "s.cmu.e" + "du?&subject=Bungee View bug report&body=" + bugInfo + "\">bug report with information about your environment<\/a>.");
-}
-//-->
-</script>
+       e = e + 'cmu';
 
-<p><a HREF="http://www.cs.cmu.edu/~mad">Mark Derthick</a> <br>
-Human Computer Interaction Institute <br>
-Carnegie Mellon University
-<p>&nbsp;</p>
-<p>Thanks to Peter Brusilovsky, Memory Grober, Ben Shneiderman, John Zimmerman, and students in CMU's Fall 2004 graduate design
-studio for help with the design.</p>
-<p>Bungee View is implemented in <a href="http://www.cs.umd.edu/hcil/piccolo/">Piccolo</a>,
-written by Ben Bederson at the University of Maryland HCIL.</p>
+       e = e + dot + 'edu';
 
-<p>
-Bungee View has been supported by the Advanced Research
-and Development Activity (ARDA) under contract number
-H98230-04-C-0406 and NBCHC040037. and by DARPA STTR
-contract DAAH01-03-C-R171, subcontracted from MayaViz, Ltd.
+   var x = '<a href=\"mailt'
 
-<p>
-Copyright (C) 2007  Mark Derthick
-<br>
-<a href="http://code.google.com/p/bungee-view/">This program</a> is free software; you can redistribute it and/or
-modify it under the terms of the <a HREF="gpl.html">GNU General Public License</a>
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
+       x = x + 'o:' + e + '\">' + e;
 
-<hr>
-<div style="text-align: right;">
-<a HREF="http://www.cs.cmu.edu/~mad">Mark Derthick</a>
-(<script type="text/javascript">
-<!--
-document.write('<a href=\"mailt' + 'o:ma' + 'd@c' + 's.cmu.e' + 'du\">');
-document.write('ma' + 'd@c' + 's.cmu.e' + 'du' + '<\/a>');
-//-->
-</script>)
-<br>
-<i> Last update: 21 October 2007 </i>
-</div>
+       return x + '<\/a>';
 
-</body>
-</html>
+ }
+
+ var element = document.getElementById('email-infox');
+
+ element.outerHTML=myEmail();
+
+</script>. <script type="text/javascript">
+
+  function replacePluses(s) {
+
+    var temp = new Array();
+
+    temp = s.split('+');
+
+    return temp.join(" ");
+
+  }
+
+  
+
+  var bugInfo = document.location.search;
+
+  if (bugInfo.length > 1) {
+
+    bugInfo = escape("Please describe the problem you had with Bungee View here:\n\n\n\n\n\n\n\n\n\n________________________________________________________________________\n"
+
+      + navigator.appName + " " + navigator.appVersion + " on "
+
+      + navigator.platform + ". "
+
+      + navigator.userAgent + "\n\n") + replacePluses(bugInfo.substring(1));
+
+
+
+    document.write("Or send a <\a href=\"mailt" + "o:ma" + "d@c"
+
+    + "s.cmu.e" + "du?&subject=Bungee View bug report&body=" + bugInfo
+
+    + "\">bug report with information about your environment<\/a>.");
+
+
+
+  }
+
+</script> </p> <p> <a href="//www.cs.cmu.edu/~mad">Mark Derthick</a> <br> Human Computer Interaction Institute <br> Carnegie Mellon University </p> <p> Thanks to Peter Brusilovsky, Memory Grober, Ben Shneiderman, John Zimmerman, and students in CMU's Fall 2004 graduate design studio for help with the design. </p> <p> Bungee View is implemented in <a href="//www.cs.umd.edu/hcil/piccolo/">Piccolo</a>, written by Ben Bederson at the University of Maryland HCIL. </p> <p> Bungee View has been supported by the Advanced Research and Development Activity (ARDA) under contract number H98230-04-C-0406 and NBCHC040037, and by DARPA STTR contract DAAH01-03-C-R171, subcontracted from MayaViz, Ltd. </p> <hr> <p> <small> <strong>Bungee View</strong> version 5/2016, Copyright &copy; 2007-2016 Mark Derthick <br> Bungee View comes with ABSOLUTELY NO WARRANTY; This program is free software; you can redistribute it and/or modify it under the terms of the <a HREF="gpl_files/gpl.html">GNU General Public License</a> as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version. The <a href="//github.com/derthick/bungee-view/">project site</a> contains the source code and documentation for Bungee View Administrators and Developers. </small> </p> <hr> <div style="text-align: right;"> http://cityscape.inf.cs.cmu.edu/bungee/Abo.html <br> <em> Last update: 10 October 2014 </em> <br> <address> <a href="//www.cs.cmu.edu/~mad">Mark Derthick</a> <img id="email-infoxx" width="60" height="29" src="Images/email-8-color.gif" alt=""><script type="text/javascript">
+
+ function myEmail() {
+
+   var dot = '.';
+
+   var a = '@';
+
+   var e = 'mad' + a;
+
+       e = e + 'cs' + dot;
+
+       e = e + 'cmu';
+
+       e = e + dot + 'edu';
+
+   var x = '<a href=\"mailt'
+
+       x = x + 'o:' + e + '\">' + e;
+
+       return x + '<\/a>';
+
+ }
+
+ var element = document.getElementById('email-infoxx');
+
+ element.outerHTML=myEmail();
+
+</script> </address> </div> </body> </html>

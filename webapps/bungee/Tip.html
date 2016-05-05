@@ -1,98 +1,29 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
-<head> 
-<title>Bungee View Tips and Tricks</title>
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-</head>
-<body>
-<h1>Bungee View Tips and Tricks</h1>
+<!DOCTYPE html> <html lang="en-US"> <head> <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1"> <link rel="shortcut icon" href="Images/bungee-2-color.gif" type="image/gif"> <link rel="canonical" href="http://cityscape.inf.cs.cmu.edu/bungee/Tip.html"> <style type="text/css">body{background-color:white}</style> <title>Bungee View Tips and Tricks</title> </head> <body> <h1>Bungee View Tips and Tricks</h1> <dl> <dt> <span style=&ldquo;font-size: large;"> Customize <strong>Bungee View</strong> </span> </dt> <dd> The mode menu (initially &ldquo;Beginner Mode&rdquo;) just under the &ldquo;Bungee View&rdquo; label lets you choose multiple display and behavior options. A bug on Macs hides the OK/Cancel buttons at the bottom of the Custom menu, so it is useless except to see what options you&rsquo;ll get if you choose &ldquo;Expert Mode.&rdquo; <br> <br> </dd> <dt> <span style="font-size: large;"> Notice the <strong>Mouse Documentation Line</strong> at the bottom of the header </span> </dt> <dd> As you move the mouse, it tells you what will happen if you click. In Expert Mode if the mouse is not over anything you can click on, it tells you what the arrow keys will do. <br> <br> </dd> <dt> <span style="font-size: large;"> How to determine <strong>what filters are in effect</strong> </span> </dt> <dd> There is an English-like description of your current query above the buttons in the header. If it doesn&rsquo;t fit on one line, you can move the mouse over it and see the full description. Each filter term is also highlighted in <span style="color: #00FF00;">bright green</span>, both along the left edge of the Tag Wall column, as well as when it appears in the Selected Result column. Since the selected result satisfies all the filters, all filter terms will all appear there (unless in Expert Mode you have selected multiple tags in one category, or selected a tag&rsquo;s <span style="color: #AC9200">brown (prohibit) checkbox</span>). <br> <br> </dd> <dt> <span style="font-size: large;"> <strong>Navigate in the Selected Result column</strong> </span> </dt> <dd> You can add and remove filters by clicking on tags for the selected result just like you can on the bars and labels on the Tag Wall. Since you can see all the categories and tags at once, this is faster for the common case where the selected result has the tags you are interested in. <br> <br> </dd> <dt> <span style="font-size: large;"> <strong>Navigate in the Results column</strong> (Expert Mode only) </span> </dt> <dd> After you click on a thumbnail in the Results column, you can use the <strong>arrow keys</strong> to select adjacent thumbnails. <br> <br> </dd> <dt> <span style="font-size: large;"> <strong>Navigate in the Tag Wall</strong> (Expert Mode only) </span> </dt> <dd> After you click on a bar or label on the Tag Wall, you can use the right and left <strong>arrow keys</strong> to select adjacent tags. This is especially useful when there are too many tags to fit on the screen. You can get a list of all tags in the selected category by clicking on the <strong>category name</strong>. <br> <br> </dd> <dt> <span style="font-size: large;"> <strong>Filter on multiple tags</strong> for a category (Expert Mode only) </span> </dt> <dd> Use control+click to add (or remove) additional single tags, or shift+click to add a range of tags to a filter on a category. The filter will match items that have <em> at least one </em> of the selected tags for that category. Clicking on the <span style="color: #72da72"> light green checkbox </span> in front of a tag label has the same effect as control+clicking. Clicking on the <span style="color: #AC9200"> light brown checkbox </span> filters <em> out </em> items with that tag. Control+a selects all tags. Alt+click displays a row of bars for a tag without changing the filters. <br> <br> </dd> <dt> <span style="font-size: large;"> <strong>Control how your browser shows help pages and result details</strong> </span> </dt> <dd> Bungee View tells your default browser what web page to display, but the browser decides whether to replace the current page, open a new window, or open a new tab. Some browsers let you customize this behavior. For instance, in Firefox go to Tools>Options>Tabs. <br> <br> </dd> <dt> <span style="font-size: large;"> <strong>Layout Customization</strong> (Expert Mode only) </span> </dt> <dd> The initial text size is set to match that of the browser that launched Bungee View. You can change it interactively by dragging the header border up and down. Move the mouse over the border until you see a horizontal white line, and then drag the line. You can also adjust the widths of the Tag Wall, Matches, and Selected Result columns by dragging their borders. (If you resize the whole window, it will compute new column widths and lose your changes.) To change the number of columns of thumbnails, move the mouse to the right of the first thumbnail column, and then drag that border. <br> <br> </dd> <dt> <span style="font-size: large;"> Get rid of those <strong>annoying pop-ups</strong> </span> </dt> <dd> Typing control+P (for <strong>P</strong>op-up) toggles between showing tool tips as pop-ups and in the mouse documentation line in the header. <br> <br> </dd> <dt> <span style="font-size: large;"> Find the <strong>most relevant tags </strong>to your query (Expert Mode only) </span> </dt> <dd> Tool tips display <strong>P-values</strong> for the difference between observed and expected Tag counts, and between observed and expected median values. A P-value (e.g. &ldquo;(p=0.07)&rdquo;) is the probability that the observed value (or a more extreme value) would occur under the null hypothesis that each case is assigned a value by sampling from the expected distribution. The displayed P-values are Bonferroni corrected by multiplying the raw value by the number of displayed bars. Corrected P-values < 0.01 are considered significant. Tags with such low P-values are colored <span style="color: #72da72">green</span> or <span style="color: #AC9200">brown</span>, depending on whether the association with the query is positive or negative. <br> <br> </dd> </dl> <hr> <div style="text-align: right;"> http://cityscape.inf.cs.cmu.edu/bungee/Tip.html <br> <em> Last update: 04 May 2016 </em> <br> <address> <a href="//www.cs.cmu.edu/~mad">Mark Derthick</a> <img id="email-infox" width="60" height="29" src="Images/email-8-color.gif" alt=""><script type="text/javascript">
 
-<dl>
-<dt>
-<span style="font-size: large;">Notice the <b>Mouse Documentation Line</b> at the bottom of the header</span>
-<dd>
-As you move the mouse, it tells you what will happen if you click. In Expert Mode if the mouse is not over anything you can click on, it tells you what the arrow keys will do.
-<br>
-<br>
+ function myEmail() {
 
-<dt>
-<span style="font-size: large;">How to determine <b>what filters are in effect</b></span>
-<dd>
-There is an English-like description of your current query above the buttons in the header.  If it doesn't fit on one line, you can move the mouse over it and see the full description.  Each filter term is also highlighted in <font color="#00FF00">bright green</font>, both along the left edge of the Tag Wall column, as well as when it appears in the Selected Result column.  Since the selected result satisfies all the filters, all filter terms will all appear there (unless in Expert Mode you have selected multiple tags in one category, or selected a tag's <font color="#AC9200">brown <i>x</i> checkbox</font>).
-<br>
-<br>
+   var dot = '.';
 
-<dt>
-<span style="font-size: large;"><b>Navigate in the Selected Result column</b></span>
-<dd>
-You can add and remove filters by clicking on tags for the selected result just like you can on the bars and labels on the Tag Wall.  Since you can see all the categories and tags at once, this is faster for the common case where the selected result has the tags you are interested in.
-<br>
-<br>
+   var a = '@';
 
-<dt>
-<span style="font-size: large;"><b>Navigate in the Results column</b> (Expert Mode only)</span>
-<dd>
-After you click on a thumbnail in the Results column, you can use the <b>arrow keys</b> to select adjacent thumbnails.  
-<br>
-<br>
+   var e = 'mad' + a;
 
-<dt>
-<span style="font-size: large;"><b>Navigate in the Tag Wall</b> (Expert Mode only)</span>
-<dd>
-After you click on a bar or label on the Tag Wall, you can use the right and left <b>arrow keys</b> to select adjacent tags.  This is especially useful when there are too many tags to fit on the screen. You can get a list of all tags in the selected category by clicking on the category name.
-<br>
-<br>
+       e = e + 'cs' + dot;
 
-<dt>
-<span style="font-size: large;"><b>Filter on multiple tags</b> for a category (Expert Mode only)</span>
-<dd>
-Use control-click to add (or remove) additional single tags, or shift-click to add a range of tags to a filter on a category.  The filter will match items that have <i>at least one</i> of the selected tags for that category.  Clicking on the <font color="#445544">light green checkbox</font> in front of a tag label has the same effect as control-clicking. Clicking on the <font color="#AC9200">light brown checkbox</font> filters <i> out </i> items with that tag.
-<br>
-<br>
+       e = e + 'cmu';
 
-<dt>
-<span style="font-size: large;"><b>Control how your browser shows help pages and result details</b></span>
-<dd>
-Bungee View tells your default browser what web page to display, but the browser decides whether to replace the current page, open a new window, or open a new tab.  Some browsers let you customize this behavior.  For instance, in Firefox go to Tools>Options>Tabs.
-<br>
-<br>
+       e = e + dot + 'edu';
 
-<dt>
-<span style="font-size: large;"><b>Layout Customization</b> (Expert Mode only)</span>
-<dd>
-The initial text size is set to match that of the browser that launched Bungee View.  You can change it interactively by dragging the header border up and down.  Move the mouse over the border until you see a horizontal white line, and then drag the line.  You can also adjust the widths of the Tag Wall, Matches, and Selected Result columns by dragging their borders.  (If you resize the whole window, it will compute new column widths and lose your changes.)  To change the number of columns of thumbnails, move the mouse over them until you see a white grid, and then drag the grid.
-<br>
-<br>
+   var x = '<a href=\"mailt'
 
-<dt>
-<span style="font-size: large;">Get rid of those <b>annoying pop-ups</b></span>
-<dd>
-Typing control+P (for <b>P</b>op-up) toggles between showing tool tips on the Tag Wall and in the mouse documentation line in the header.
-<br>
-<br>
+       x = x + 'o:' + e + '\">' + e;
 
-<dt>
-<span style="font-size: large;">Find the <b>most relevant tags </b>to your query</span>
-<dd>
-Typing control+C (for <b>C</b>luster) lists the tags most closely associated with your current query, in order of relevance. This is more precise than looking for tags colored <font color="#00BB70">dull green</font>.
-<br>
-<br>
+       return x + '<\/a>';
 
+ }
 
-</dl>
+ var element = document.getElementById('email-infox');
 
-<hr>
-<div style="text-align: right;">
-<a HREF="http://www.cs.cmu.edu/~mad">Mark Derthick</a>
-(<script type="text/javascript">
-<!--
-document.write('<a href=\"mailt' + 'o:ma' + 'd@c' + 's.cmu.e' + 'du\">');
-document.write('ma' + 'd@c' + 's.cmu.e' + 'du' + '<\/a>');
-//-->
-</script>)
-<br>
-<i> Last update: 18 October 2008 </i>
-</div>
+ element.outerHTML=myEmail();
 
-</body>
-</html>
+</script> </address> </div> </body> </html>

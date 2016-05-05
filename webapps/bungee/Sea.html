@@ -1,39 +1,29 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
-<head> 
-<title>Bungee View text search syntax</title>
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-</head>
-<body>
+<!DOCTYPE html> <html lang="en-US"> <head> <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1"> <link rel="shortcut icon" href="Images/bungee-2-color.gif" type="image/gif"> <link rel="canonical" href="http://cityscape.inf.cs.cmu.edu/bungee/Sea.html"> <style type="text/css">body{background-color:white}</style> <title>Bungee View text search syntax</title> </head> <body> <h1>Bungee View text search syntax</h1> <p>Entering a set of keywords matches items that contain <em>any</em> of those keywords, in any of the item&rsquo;s metadata. Text searches are not case-sensitive; in other words, capitalization is ignored.</p> <p>To search for items containing <em>all</em> words, put &ldquo;+&rdquo; in front of each word (or enter each word one at a time and type enter).</p> <p>To search for items <em>not</em> containing a word, put &ldquo;-&rdquo; in front of the word. (You must have at least one word that doesn&rsquo;t have a &ldquo;-&rdquo; in front of it, though.)</p> <p>You can add a wildcard at the end of a sequence of letters. For example, &ldquo;bun*&rdquo; will match &ldquo;bun&rdquo;, &ldquo;buns&rdquo;, or &ldquo;bungee.&rdquo;</p> <p>You can search for a phrase by putting it in quotation marks, for example &ldquo;grand canyon&rdquo;.</p> <p>For more details, see <a href="//dev.mysql.com/doc/refman/5.5/en/fulltext-boolean.html">the complete documentation for MySQL Boolean Mode searches</a>.</p> <hr> <div style="text-align: right;"> http://cityscape.inf.cs.cmu.edu/bungee/Sea.html <br> <em> Last update: 04 May 2016 </em> <br> <address> <a href="//www.cs.cmu.edu/~mad">Mark Derthick</a> <img id="email-infox" width="60" height="29" src="Images/email-8-color.gif" alt=""><script type="text/javascript">
 
-<h2>Bungee View text search syntax</h2>
+ function myEmail() {
 
-<p>Entering a set of keywords matches items that contain <i>any</i> of those
-keywords, in any of the item's metadata.  Text searches are not case-sensitive; in other words, capitalization is ignored.</p>
+   var dot = '.';
 
-<p>To search for items containing <i>all</i> words, put '+' in front of each word (or enter each word one at a
-time and type enter).</p>
+   var a = '@';
 
-<p>To search for items <i>not</i> containing a word, put '-' in front of the word. (You must have at least one word that doesn't have a '-' in front of it, though.)</p>
+   var e = 'mad' + a;
 
-<p>You can add a wildcard at the end of a sequence of letters.  For example, 'bun*' will match 'bun', 'buns', or 'bungee'.</p>
+       e = e + 'cs' + dot;
 
-<p>You can search for a phrase by putting it in quotation marks, for example "grand canyon".</p>
+       e = e + 'cmu';
 
-<p>For more details, see <a href="http://dev.mysql.com/doc/refman/5.0/en/fulltext-boolean.html">the complete documentation for MySQL Boolean Mode searches</a>.</p>
+       e = e + dot + 'edu';
 
-<hr>
-<div style="text-align: right;">
-<a HREF="http://www.cs.cmu.edu/~mad">Mark Derthick</a>
-(<script type="text/javascript">
-<!--
-document.write('<a href=\"mailt' + 'o:ma' + 'd@c' + 's.cmu.e' + 'du\">');
-document.write('ma' + 'd@c' + 's.cmu.e' + 'du' + '<\/a>');
-//-->
-</script>)
-<br>
-<i> Last update: 31 October 2006 </i>
-</div>
+   var x = '<a href=\"mailt'
 
-</body>
-</html>
+       x = x + 'o:' + e + '\">' + e;
+
+       return x + '<\/a>';
+
+ }
+
+ var element = document.getElementById('email-infox');
+
+ element.outerHTML=myEmail();
+
+</script> </address> </div> </body> </html>
